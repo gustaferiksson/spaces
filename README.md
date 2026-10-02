@@ -29,6 +29,10 @@ spaces right    # switch one Space right and exit
 Switching stops at the first and last Space instead of bouncing. With several
 displays it follows the display under the pointer.
 
+Without the slide it's easy to lose track, so every Space change (keyboard,
+trackpad or Mission Control) shows a small glass pill below the menu bar with
+"Desktop N", or the app name on a full-screen Space.
+
 ## How it works
 
 `spaces` posts a synthetic Dock swipe, the same kind of event a three-finger

@@ -7,6 +7,11 @@ func fail(_ message: String, code: Int32) -> Never {
 }
 
 let command = CommandLine.arguments.dropFirst().first ?? ""
+
+if command == "install-icon" {
+  exit(ExecutableIcon.install() ? 0 : 1)
+}
+
 guard ["left", "right", "daemon"].contains(command) else {
   FileHandle.standardError.write(Data("usage: spaces [left|right|daemon]\n".utf8))
   exit(2)
@@ -28,9 +33,12 @@ if !hasAccess {
 }
 
 do {
-  let listener = try HotKeyListener { switcher.switchSpace($0) }
-  NSApplication.shared.setActivationPolicy(.prohibited)
-  withExtendedLifetime(listener) { NSApplication.shared.run() }
+  let indicator = SpaceIndicator()
+  let listener = try HotKeyListener { direction in
+    if let destination = switcher.switchSpace(direction) { indicator.show(destination) }
+  }
+  NSApplication.shared.setActivationPolicy(.accessory)
+  withExtendedLifetime((listener, indicator)) { NSApplication.shared.run() }
 } catch {
   fail("\(error)", code: 1)
 }

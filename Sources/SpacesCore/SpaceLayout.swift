@@ -2,9 +2,13 @@ import ColorSync
 import CoreGraphics
 import Foundation
 
-struct SpaceLayout: Equatable {
+public struct SpaceLayout: Equatable, Sendable {
+  private static let desktopType = 0
+
   let index: Int
-  let count: Int
+  let desktopNumbers: [Int?]
+
+  var desktopNumber: Int? { desktopNumbers[index] }
 
   init?(displays: [[String: Any]], cursorDisplay: String?) {
     let display =
@@ -14,11 +18,20 @@ struct SpaceLayout: Equatable {
       let index = spaces.firstIndex(where: { $0["ManagedSpaceID"] as? Int == currentID })
     else { return nil }
     self.index = index
-    self.count = spaces.count
+    self.desktopNumbers = spaces.reduce(into: []) { numbers, space in
+      numbers.append(space["type"] as? Int == Self.desktopType ? numbers.compactMap { $0 }.count + 1 : nil)
+    }
   }
 
-  func canMove(_ direction: Direction) -> Bool {
-    direction == .left ? index > 0 : index < count - 1
+  private init(index: Int, desktopNumbers: [Int?]) {
+    self.index = index
+    self.desktopNumbers = desktopNumbers
+  }
+
+  func moved(_ direction: Direction) -> SpaceLayout? {
+    let destination = index + (direction == .left ? -1 : 1)
+    guard desktopNumbers.indices.contains(destination) else { return nil }
+    return SpaceLayout(index: destination, desktopNumbers: desktopNumbers)
   }
 }
 

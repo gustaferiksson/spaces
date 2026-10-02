@@ -13,14 +13,18 @@ public final class SpaceSwitcher {
       as? Bool ?? true
   }
 
-  public func switchSpace(_ direction: Direction) {
-    guard SpaceLayout.current()?.canMove(direction) ?? true else { return }
+  @discardableResult
+  public func switchSpace(_ direction: Direction) -> SpaceLayout? {
+    let layout = SpaceLayout.current()
+    let destination = layout?.moved(direction)
+    guard layout == nil || destination != nil else { return nil }
     let events = DockSwipe.gesture(direction, naturalScrolling: naturalScrolling).compactMap { $0.event() }
-    guard events.count == SwipePhase.allCases.count else { return }
+    guard events.count == SwipePhase.allCases.count else { return nil }
     for event in events {
       event.post(tap: .cgSessionEventTap)
       DockSwipe.companionEvent()?.post(tap: .cgSessionEventTap)
       Thread.sleep(forTimeInterval: Self.phaseInterval)
     }
+    return destination
   }
 }
