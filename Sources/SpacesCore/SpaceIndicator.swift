@@ -75,6 +75,7 @@ struct IndicatorView: View {
   var body: some View {
     Text(model.title)
       .font(.system(size: 12, weight: .semibold))
+      .monospacedDigit()
       .foregroundStyle(.primary)
       .padding(.horizontal, 16)
       .padding(.vertical, 8)
