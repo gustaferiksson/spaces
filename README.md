@@ -15,8 +15,8 @@ Then:
    Keyboard → Keyboard Shortcuts → Mission Control, so macOS doesn't take
    Ctrl+←/→ first.
 
-After `brew upgrade spaces` the binary changes, so macOS may ask for
-Accessibility access again.
+Releases are signed with a Developer ID and notarized, so the Accessibility
+grant survives `brew upgrade`.
 
 ## Commands
 
@@ -45,4 +45,4 @@ which documents it in depth.
 It relies on undocumented event fields and a private SkyLight call (to know
 which Space you're on), so a macOS update can break it.
 
-Requires macOS 27. Trackpad swipes keep the native animation.
+Requires macOS 27 on Apple silicon. Trackpad swipes keep the native animation.
