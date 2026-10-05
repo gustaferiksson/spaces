@@ -34,7 +34,8 @@ if !hasAccess {
 
 do {
   let indicator = SpaceIndicator()
-  let listener = try HotKeyListener { direction in
+  let listener = try HotKeyListener { action in
+    guard case .switchSpace(let direction) = action else { return toggleControlCenter() }
     if let destination = switcher.switchSpace(direction) { indicator.show(destination) }
   }
   NSApplication.shared.setActivationPolicy(.accessory)

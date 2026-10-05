@@ -1,6 +1,7 @@
 # spaces
 
 Instant Ctrl+←/→ switching between macOS Spaces, without the slide animation.
+Ctrl+Option+Cmd+C opens Control Center (press it again to close).
 
 ```sh
 brew install gustaferiksson/tap/spaces
@@ -21,7 +22,7 @@ grant survives `brew upgrade`.
 ## Commands
 
 ```sh
-spaces daemon   # listen for Ctrl+←/→ (what brew services runs)
+spaces daemon   # listen for Ctrl+←/→ and Ctrl+Option+Cmd+C (what brew services runs)
 spaces left     # switch one Space left and exit
 spaces right    # switch one Space right and exit
 ```
