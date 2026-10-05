@@ -8,17 +8,18 @@ public func toggleControlCenter() {
   var extrasMenuBar: CFTypeRef?
   AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), "AXExtrasMenuBar" as CFString, &extrasMenuBar)
   guard let extrasMenuBar, CFGetTypeID(extrasMenuBar) == AXUIElementGetTypeID() else { return }
-  let item = children(of: extrasMenuBar as! AXUIElement).flatMap(children).first { item in
+  var groups: CFTypeRef?
+  AXUIElementCopyAttributeValue(extrasMenuBar as! AXUIElement, kAXChildrenAttribute as CFString, &groups)
+  let items = (groups as? [AXUIElement] ?? []).flatMap { group in
+    var items: CFTypeRef?
+    AXUIElementCopyAttributeValue(group, kAXChildrenAttribute as CFString, &items)
+    return items as? [AXUIElement] ?? []
+  }
+  let controlCenter = items.first { item in
     var identifier: CFTypeRef?
     AXUIElementCopyAttributeValue(item, kAXIdentifierAttribute as CFString, &identifier)
     return identifier as? String == "com.apple.menuextra.controlcenter"
   }
-  guard let item else { return }
-  AXUIElementPerformAction(item, kAXPressAction as CFString)
-}
-
-private func children(of element: AXUIElement) -> [AXUIElement] {
-  var children: CFTypeRef?
-  AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children)
-  return children as? [AXUIElement] ?? []
+  guard let controlCenter else { return }
+  AXUIElementPerformAction(controlCenter, kAXPressAction as CFString)
 }
