@@ -66,6 +66,11 @@ which documents it in depth. It relies on undocumented event fields and a
 private SkyLight call (to know which Space you're on), so a macOS update can
 break it.
 
+The Dock ignores the swipe while a window is being dragged, so then Spaces
+briefly turns on macOS's own "Move left/right a space" shortcut and presses it
+for you, which carries the window along. It's switched back off when you let go
+of the mouse.
+
 Windows are moved through the Accessibility API. Switching stops at the first
 and last Space instead of bouncing, and with several displays it follows the
 display under the pointer.
