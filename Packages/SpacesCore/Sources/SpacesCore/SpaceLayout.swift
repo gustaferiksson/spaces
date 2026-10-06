@@ -8,7 +8,7 @@ public struct SpaceLayout: Equatable, Sendable {
   let index: Int
   let desktopNumbers: [Int?]
 
-  var desktopNumber: Int? { desktopNumbers[index] }
+  public var desktopNumber: Int? { desktopNumbers[index] }
 
   init?(displays: [[String: Any]], cursorDisplay: String?) {
     let display =
@@ -50,7 +50,7 @@ extension SpaceLayout {
     )
   }()
 
-  static func current() -> SpaceLayout? {
+  public static func current() -> SpaceLayout? {
     guard let skyLight,
       let displays = skyLight.copyManagedDisplaySpaces(skyLight.mainConnectionID())?.takeRetainedValue()
         as? [[String: Any]]

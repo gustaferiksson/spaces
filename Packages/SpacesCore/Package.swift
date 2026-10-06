@@ -2,11 +2,13 @@
 import PackageDescription
 
 let package = Package(
-  name: "spaces",
+  name: "SpacesCore",
   platforms: [.macOS("27.0")],
+  products: [
+    .library(name: "SpacesCore", targets: ["SpacesCore"])
+  ],
   targets: [
     .target(name: "SpacesCore"),
-    .executableTarget(name: "spaces", dependencies: ["SpacesCore"]),
     .testTarget(name: "SpacesCoreTests", dependencies: ["SpacesCore"]),
   ]
 )

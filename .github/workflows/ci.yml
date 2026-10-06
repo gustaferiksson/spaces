@@ -6,14 +6,26 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Build & test
+  build:
+    name: Build & test (unsigned)
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Test
-        run: swift test
+      - name: Install build tools
+        run: brew install xcodegen librsvg
 
-      - name: Build
-        run: swift build -c release --arch arm64
+      - name: Test
+        run: swift test --package-path Packages/SpacesCore
+
+      - name: Build (ad-hoc, unsigned)
+        run: ./build.sh
+
+      - name: Verify the bundle
+        run: |
+          set -euo pipefail
+          test -f dist/Spaces.app/Contents/Resources/Assets.car
+          name=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" dist/Spaces.app/Contents/Info.plist)
+          [ "$name" = "AppIcon" ] || { echo "CFBundleIconName is '$name', expected AppIcon"; exit 1; }
+          scheme=$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" dist/Spaces.app/Contents/Info.plist)
+          [ "$scheme" = "spaces" ] || { echo "URL scheme is '$scheme', expected spaces"; exit 1; }
