@@ -24,6 +24,11 @@ struct SettingsView: View {
       }
     }
     .frame(width: 560)
-    .onAppear { NSApp.activate() }
+    .onAppear {
+      // Without a Dock icon, macOS leaves the menu bar blank after a Space switch while Settings is key.
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate()
+    }
+    .onDisappear { NSApp.setActivationPolicy(.accessory) }
   }
 }
