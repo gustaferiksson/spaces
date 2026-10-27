@@ -1,14 +1,13 @@
 # Window switcher: flow spec
 
-An opt-in replacement for Mission Control: a glass panel listing the apps that have windows on the current Space,
-grouped by app, in a stable A to Z order. Off by default.
+An opt-in replacement for Mission Control: a full-screen overlay on the desktop picture showing live previews of the
+windows on the current Space, stacked by app in a stable A to Z order. Off by default.
 
 ## Goals
 
-- Opening is instant: the hot corner fires on entry, the panel appears without a fade, and nothing on the main thread
-  waits for Accessibility or capture.
-- Positions are stable: the same set of apps always lands in the same places. Launching or quitting an app only moves
-  the tiles after it.
+- Opening is instant: the hot corner fires on entry, the overlay is on screen in the first frame with the animation
+  starting right away, and nothing on the main thread waits for Accessibility, capture or image decoding.
+- Positions are stable: the same set of apps always lands in the same places, in A to Z order.
 - Windows never vanish: every on-screen window is listed, even when its app answers Accessibility badly or slowly.
 - Every path works with the mouse alone and with the keyboard alone.
 
@@ -47,7 +46,7 @@ and every trigger does nothing without Accessibility access.
   - A layer 0 window with no Accessibility match (Java, Wine and some Electron windows) is listed as title-less when
     it is at least 100 x 100 pt and not fully transparent. It is focused by activating its app.
   - Apps are queried in parallel off the main thread, each Accessibility call with a 100 ms timeout. An app that does
-    not answer still gets its tile, built from its CG windows by the same size rule.
+    not answer still gets its stack, built from its CG windows by the same size rule.
   - The panel opens at once with the list from the previous enumeration (the first one runs when the switcher starts)
     and swaps in the fresh list when it arrives, typically within 10 ms. Selection and expansion survive the swap
     unless their app or window is gone.
@@ -68,9 +67,7 @@ and every trigger does nothing without Accessibility access.
 
 - Apps: by localized name, using Finder ordering (`localizedStandardCompare`: case and diacritic insensitive, numbers
   in numeric order), ties broken by pid. Never by recency.
-- Columns: a fixed maximum per display width (as many 112 pt tiles as fit in 80% of the visible frame, at most 8),
-  filled row by row, so inserting an app only shifts the tiles after it. Fewer apps than the maximum use one row of
-  exactly that many columns. Positions are stable per display; a narrower display may hold fewer columns.
+- Grid: filled row by row; the column count follows from the app count and the display (see Stacks).
 - Windows within an app: by window ID ascending, which is creation order and does not change when a window is
   focused. The app's **most recent window** is its frontmost one in the on-screen order, used when the stack itself
   is chosen.
@@ -85,96 +82,127 @@ and every trigger does nothing without Accessibility access.
 - Title-less windows show `Untitled Window` in secondary text. With several title-less windows, they are numbered
   in creation order: `Untitled Window 2`.
 
-## Panel layout
+## Overlay
 
-- A borderless `NSPanel` subclass with `canBecomeKey` true and `.nonactivatingPanel`, sized to the visible frame of
-  the display under the pointer, above full-screen windows, on every Space. It takes key status without activating
-  Spaces, so the app the user came from stays frontmost until a choice is made.
-- The whole panel catches clicks; a click that is not on the card closes it.
-- One card, centred horizontally, its top a third of the way down the free space above and below the collapsed card.
-  The card grows downward and symmetrically sideways when previews appear, so the tiles never move.
-- The card is `.glassEffect(.regular)` over a 90% window background fill, 24 pt corner radius, 16 pt padding. The fill
-  keeps the card the same tone over light and dark content; plain glass took on the light or dark of whatever was
-  behind each half. Reduce Transparency and Increase Contrast are handled by the glass itself.
-- Every size, padding and radius is a multiple of 4 pt. No coloured accents; selection uses a neutral fill, and
-  buttons have no focus ring.
-- Appears at once, with no fade; disappears at once.
+- A borderless `NSPanel` subclass with `canBecomeKey` true and `.nonactivatingPanel`, covering the full frame of the
+  display under the pointer (menu bar and Dock included), above full-screen windows, on every Space. It takes key
+  status without activating Spaces, so the app the user came from stays frontmost until a choice is made.
+- Backdrop: that display's desktop picture (`NSWorkspace.desktopImageURL(for:)`), drawn the way macOS draws it from
+  `desktopImageOptions(for:)`: fill when clipping is allowed, fit on the fill colour when not, stretched for
+  "scale axes independently". "Center" is drawn as fit. A black layer at 32% dims it, like Mission Control. Without
+  a readable picture (or before the first one has loaded) the backdrop is a dark regular material.
+- Wallpapers are decoded off the main thread with `CGImageSourceCreateThumbnailAtIndex` at the largest display's
+  pixel size, when the switcher starts and on every open, and cached per URL. Opening only looks the image up, so it
+  costs nothing; a picture that changed shows from the next open (or as soon as it has loaded).
+- Labels and badges are always light on dark, whatever the system appearance, as in Mission Control.
+- Every size, padding and radius is a multiple of 4 pt. No coloured accents; selection is a 16 pt radius white fill
+  at 16%, and buttons have no focus ring.
 
-### App tile (112 x 112 pt)
+### Stacks
 
-- The app icon at 64 pt on top, the app name below in 12 pt medium, one line, truncated at the tail.
-- Window count badge at the icon's top trailing corner when the app has more than one window: a capsule with the
-  number in 11 pt semibold, monospaced digits, regular material background.
-- Stacked-cards look when there are 2 or more windows: one card shape behind the icon for 2 windows, two for 3 or
-  more, each 4 pt higher and 8 pt narrower than the one in front, filled with a faint primary tint.
-- Selected tile (hover or keyboard): a 16 pt radius neutral fill behind the tile.
+- One stack per app, in a grid inside the visible frame inset by 5% on each side (90% of it). The grid is centred,
+  and a short last row is centred too.
+- Size: row counts from one up to the app count are tried with balanced columns (10 apps: 10, 5 x 2, 4 x 3, ...);
+  the widest slot wins, ties going to fewer rows. A slot is 16:10, at most 480 pt wide, rounded down to 4 pt and
+  never below 96 pt; each cell adds 8 pt around it and a 40 pt label area below. Every cell has the same size, so
+  column gaps are even whatever the windows' shapes. The same apps on the same display always get the same layout;
+  launching or quitting an app can change the tile size and reflow the grid, but never the A to Z order.
+- Face: a live preview of the app's **main window** (its frontmost one), aspect-fit in the slot and aligned to the
+  slot's bottom so titles line up across a row; 8 pt radius and a soft shadow. The app icon is a 32 pt badge inside
+  its bottom-leading corner.
+- Below the face: the window title in 13 pt medium and the app name in 11 pt secondary, each one line, truncated in
+  the middle.
+- Several windows: a count capsule at the face's top trailing corner (11 pt semibold, monospaced digits, regular
+  material), and one card (2 windows) or two cards (3 or more) peeking above the face, each 4 pt higher and 16 pt
+  narrower than the one in front, white at 32% and 16%.
 - VoiceOver: a button labelled "<App>, 1 window" or "<App>, <n> windows", with a "Show Windows" action that
   expands it.
 
-### Window previews
+### Expanded stack
 
-- Expanding an app shows its windows as previews in rows below the grid, 16 pt under the last tile row, centred in the
-  card. Window order is creation order and does not change while the panel is open.
-- Each preview is a fixed 16:10 box with the window's capture aspect-fit inside (8 pt radius), the cleaned title
-  centred below in 13 pt, one line, truncated in the middle. Selection is a 16 pt radius neutral fill around box and
-  title.
-- Sizing: the box is as wide as possible up to 320 pt, in the space between the grid and 32 pt above the bottom of
-  the visible frame, and the panel width less 32 pt margins. Row counts from one up to the window count are tried
-  with balanced columns (6 windows: 6, 3 x 2, 2 x 3, ...), and the widest box wins, ties going to fewer rows. Widths
-  round down to 4 pt, never below 96 pt; past that the card is clipped at the bottom of the panel.
-- Captures: on every open with Screen Recording access, one `SCShareableContent` call and then a
-  `SCScreenshotManager` capture of every listed window (`desktopIndependentWindow` filter, at most 320 x 200 pt at the
-  display's scale), started in A to Z order. They run after the panel is up and fill in as they finish.
+- Expanding swaps the grid for the app's windows, laid out with the same rule over the same 90% area: 16:10 slots up
+  to 640 pt wide, a 24 pt title area below, window order by creation. The other stacks fade out and nothing else
+  moves.
+- Decision: expand over the grid rather than fanning out in place. The stacks already fill the screen, so a fan of
+  four to six windows would either cover the neighbours anyway or shrink the previews below the stack size, which
+  defeats expanding. Reusing the full area gives the biggest previews and reuses the grid rule.
+- Each preview is the window's capture aspect-fit and bottom-aligned in its slot with the icon badge, and the cleaned
+  title centred below in 13 pt medium.
+
+### Captures
+
+- On every open with Screen Recording access, one `SCShareableContent` call and then a `SCScreenshotManager` capture
+  per listed window (`desktopIndependentWindow` filter, at most 640 x 400 pt at the display's scale). Every app's
+  main window is captured first, all at once; the other windows start when those have finished. They run after the
+  overlay is up and fill in as they finish.
 - Cache: captures are kept per window ID across opens, so a reopen shows the last image at once while a fresh one is
   captured behind it. Entries for windows that are no longer listed are dropped on each enumeration.
-- Title card: until a window has a capture, or always without Screen Recording access, its box is a faint neutral
-  fill with the app icon (at most 64 pt) centred. Same size as a preview, so nothing moves when a capture arrives.
+- Title card: until a window has a capture, or always without Screen Recording access, its face is a dark fill with
+  the app icon (at most 96 pt) centred and no corner badge. It has the window's shape, so nothing moves when a
+  capture arrives.
+
+### Animation
+
+- Opening: the overlay appears on the first frame showing the undimmed wallpaper with every window's cached capture
+  at that window's real on-screen frame, so it looks like the desktop. Then, in 240 ms (`.smooth`), the backdrop dims,
+  each main window's preview moves into its stack face, the other windows move into their app's stack and fade out,
+  and labels, badges and peeking cards fade in. Windows without a cached capture fade in at their slot instead.
+  Windows on another display start off screen.
+- Expanding and collapsing move the app's previews between the stack and the expanded slots with the same timing.
+- Closing with Esc, a click on the backdrop or the trigger runs the opening in reverse, then hides the overlay.
+  Picking a window runs it in reverse with the picked preview on top, then hides the overlay and focuses the window.
+- Real windows are never moved.
+- Reduce Motion: the overlay crossfades in and out and expansion crossfades, with nothing moving.
+- **Animate windows** off in Settings: no animation at all; the overlay appears and disappears at once.
+- Closing because the Space or display configuration changed, or because another app became active, is immediate.
 
 ### Empty state
 
-- The glass card holds a `ContentUnavailableView` with the `macwindow` symbol, "No Windows on This Space" and
-  "Open windows on this Space appear here, grouped by app." Esc, click outside or the trigger closes it.
+- A glass card tinted dark, centred on the backdrop, holds a `ContentUnavailableView` with the `macwindow` symbol,
+  "No Windows on This Space" and "Open windows on this Space appear here, grouped by app." Esc, a click on the
+  backdrop or the trigger closes it.
 
 ### Overflow
 
-- No scrolling. With 8 columns, the grid would need about 48 apps with windows on one Space to overflow; past that
-  the card is clipped to the visible frame.
+- No scrolling. Past the 96 pt minimum slot (around 70 apps with windows on one Space on a laptop display) the grid
+  is clipped.
 
 ## Mouse paths
 
 | Action | Result |
 | --- | --- |
-| Hover a tile | Selects it. |
-| Rest 200 ms on a tile | Expands it, whatever its window count, replacing any other expanded app. Moving off before then cancels, so crossing other tiles on the way down to the previews does not switch apps. |
-| Click a tile | Focuses the app's most recent window and closes the panel, whatever the window count and however long the pointer rested. Expansion is by hover or keyboard only, so a click on the same spot always does the same thing. |
-| Hover a preview | Selects it (and its app's tile). |
-| Click a preview | Focuses that window and closes the panel. |
-| Pointer leaves the card | Nothing; previews stay until another tile expands or the panel closes. |
-| Click outside the card | Closes. |
+| Hover a stack | Selects it. |
+| Rest 200 ms on a stack with several windows | Expands it. Moving off before then cancels. After a collapse, the stack under a pointer that has not moved does not expand again. |
+| Click a single-window stack | Focuses that window. |
+| Click a stack with several windows | Expands it at once. |
+| Hover a preview | Selects it. |
+| Click a preview | Focuses that window. |
+| Click the backdrop | Collapses when expanded, otherwise closes, like Mission Control. |
 
 ## Keyboard paths
 
 | Key | Collapsed | Expanded |
 | --- | --- | --- |
-| ← → ↑ ↓ | Move the tile selection (stops at the edges; ↓ from a row with no tile directly below goes to the last tile). | Move the preview selection with the same rules over the preview rows; the first arrow selects the first preview. ← from the first column collapses. |
-| Space | Expands the selected tile and selects its first preview. | Collapses. |
-| Return | Focuses the selected app's most recent window. | Focuses the selected window, or the app's most recent one if none is selected. |
-| Esc | Closes the panel. | Collapses. |
+| ← → ↑ ↓ | Move the stack selection (stops at the edges; ↓ from a row with no stack directly below goes to the last stack). | Move the preview selection with the same rules; the first arrow selects the first preview. ← from the first column collapses. |
+| Space | Expands the selected stack (any window count) and selects its first preview. | Collapses. |
+| Return | Focuses the selected app's main window. | Focuses the selected window, or the app's main one if none is selected. |
+| Esc | Closes the overlay. | Collapses. |
 
-- The first tile is selected when the panel opens via the shortcut or URL; with the hot corner, nothing is selected
-  until the pointer hovers a tile or an arrow key is pressed (the arrow then selects the first tile).
+- The first stack is selected when the overlay opens via the shortcut or URL; with the hot corner, nothing is
+  selected until the pointer hovers a stack or an arrow key is pressed (the arrow then selects the first stack).
 - Decision: → moves the selection rather than expanding, since a grid needs all four arrows. Space expands, as in
   Finder. Arrows follow visual direction.
+- Keys are ignored while the closing animation runs.
 
 ## Focusing a window
 
 0. Check the window still exists (its `AXRole` reads; for a window without an Accessibility element, its app is
-   still running). If not, re-enumerate, keep the panel open and stop.
-1. Set the app's `AXFrontmost` to true. Cooperative activation can refuse `NSRunningApplication.activate()` from a
+   still running). If not, re-enumerate, keep the overlay open and stop.
+1. Run the closing animation and hide the overlay.
+2. Set the app's `AXFrontmost` to true. Cooperative activation can refuse `NSRunningApplication.activate()` from a
    background app, while the Accessibility route does not.
-2. `AXRaise` on the window and set its `AXMain` to true. Doing this after activation keeps the app from re-keying its
-   previous main window. Windows without an Accessibility element stop after step 1.
-3. Close the panel.
+3. `AXRaise` on the window and set its `AXMain` to true. Doing this after activation keeps the app from re-keying its
+   previous main window. Windows without an Accessibility element stop after step 2.
 
 ## Live changes while open
 
@@ -199,8 +227,8 @@ and every trigger does nothing without Accessibility access.
 
 Icon `square.grid.2x2`. Sections:
 
-1. Toggle **Window switcher**: "Show the apps with windows on this Space and previews of their windows, from a hot
-   corner or a shortcut." Turning it on while no corner is chosen preselects the corner macOS uses for Mission Control
+1. Toggle **Window switcher**: "Show previews of the windows on this Space, stacked by app, from a hot corner or a
+   shortcut." Turning it on while no corner is chosen preselects the corner macOS uses for Mission Control
    (`wvous-*-corner` = 2), if any.
 2. **Hot corner** picker (Off, Top-Left, Top-Right, Bottom-Left, Bottom-Right) and the **Shortcut** row (the same
    recorder as the Shortcuts tab). Footer when both are unset: "Choose a hot corner or shortcut to open it."
@@ -209,9 +237,10 @@ Icon `square.grid.2x2`. Sections:
    each time Settings becomes active.
 4. **Window previews**: Screen Recording status (Allowed / Allow…). Allowed: "Shows a live preview of each window."
    Not allowed: "Strongly recommended. Without Screen Recording access, windows show as title cards. After allowing
-   it, quit and reopen Spaces."
+   it, quit and reopen Spaces." Below it, the **Animate windows** toggle (on by default): "Previews move between each
+   window's place on screen and the grid, like Mission Control."
 
-The hot corner and shortcut rows are disabled while the toggle is off. Restore Defaults in the Shortcuts tab leaves
+The hot corner, shortcut and Animate windows rows are disabled while the toggle is off. Restore Defaults in the Shortcuts tab leaves
 the switcher shortcut alone. The menu bar menu gets a **Window Switcher**
 toggle next to the other two features.
 

@@ -46,6 +46,7 @@ final class AppSettings {
   var windowSnappingEnabled: Bool { didSet { store.set(windowSnappingEnabled, forKey: "windowSnappingEnabled") } }
   var windowGap: Double { didSet { store.set(windowGap, forKey: "windowGap") } }
   var windowSwitcherEnabled: Bool { didSet { store.set(windowSwitcherEnabled, forKey: "windowSwitcherEnabled") } }
+  var switcherAnimates: Bool { didSet { store.set(switcherAnimates, forKey: "switcherAnimates") } }
   var switcherCorner: ScreenCorner? { didSet { store.set(switcherCorner?.rawValue, forKey: "switcherCorner") } }
   var snapActions: [SnapZone: WindowAction] {
     didSet {
@@ -58,7 +59,9 @@ final class AppSettings {
   }
 
   init(store: UserDefaults) {
-    store.register(defaults: ["showMenuBarIcon": true, "spaceSwitchingEnabled": true, "windowSnappingEnabled": true])
+    store.register(defaults: [
+      "showMenuBarIcon": true, "spaceSwitchingEnabled": true, "windowSnappingEnabled": true, "switcherAnimates": true,
+    ])
     self.store = store
     showMenuBarIcon = store.bool(forKey: "showMenuBarIcon")
     showDesktopInMenuBar = store.bool(forKey: "showDesktopInMenuBar")
@@ -66,6 +69,7 @@ final class AppSettings {
     windowSnappingEnabled = store.bool(forKey: "windowSnappingEnabled")
     windowGap = store.double(forKey: "windowGap")
     windowSwitcherEnabled = store.bool(forKey: "windowSwitcherEnabled")
+    switcherAnimates = store.bool(forKey: "switcherAnimates")
     switcherCorner = store.string(forKey: "switcherCorner").flatMap(ScreenCorner.init)
     let storedSnapActions = (store.dictionary(forKey: "snapActions") as? [String: String]).map { stored in
       Dictionary(

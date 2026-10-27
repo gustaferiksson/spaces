@@ -78,7 +78,7 @@ final class Engine {
     snap = SnapController(mover: mover, isEnabled: { [settings] in settings.windowSnappingEnabled }) {
       [settings] zone in settings.snapActions[zone]
     }
-    windowSwitcher = WindowSwitcher()
+    windowSwitcher = WindowSwitcher { [settings] in settings.switcherAnimates }
     windowSwitcher?.refresh()
     watchHotCorner()
   }

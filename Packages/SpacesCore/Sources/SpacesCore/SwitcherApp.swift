@@ -5,6 +5,8 @@ public struct SwitcherWindow: Identifiable, Equatable, @unchecked Sendable {
   public let id: CGWindowID
   public let title: String
   public let isUntitled: Bool
+  public let frame: CGRect
+  public let depth: Int
   let element: AXUIElement?
 }
 
@@ -18,8 +20,8 @@ public struct SwitcherApp: Identifiable, Equatable, Sendable {
   private static let titleSeparators = [" — ", " – ", " - ", " | ", " · ", ": "]
 
   public init(
-    id: pid_t, name: String, icon: NSImage, windows: [(id: CGWindowID, title: String?, element: AXUIElement?)],
-    frontToBack: [CGWindowID]
+    id: pid_t, name: String, icon: NSImage,
+    windows: [(id: CGWindowID, title: String?, element: AXUIElement?, frame: CGRect)], frontToBack: [CGWindowID]
   ) {
     self.id = id
     self.name = name
@@ -28,12 +30,11 @@ public struct SwitcherApp: Identifiable, Equatable, Sendable {
     let titles = ordered.map { Self.cleanTitle($0.title, appName: name) }
     self.windows = ordered.indices.map { index in
       let window = ordered[index]
-      guard let title = titles[index] else {
-        let number = titles[..<index].filter { $0 == nil }.count + 1
-        let title = number > 1 ? "Untitled Window \(number)" : "Untitled Window"
-        return SwitcherWindow(id: window.id, title: title, isUntitled: true, element: window.element)
-      }
-      return SwitcherWindow(id: window.id, title: title, isUntitled: false, element: window.element)
+      let number = titles[..<index].filter { $0 == nil }.count + 1
+      let title = titles[index] ?? (number > 1 ? "Untitled Window \(number)" : "Untitled Window")
+      return SwitcherWindow(
+        id: window.id, title: title, isUntitled: titles[index] == nil, frame: window.frame,
+        depth: frontToBack.firstIndex(of: window.id) ?? frontToBack.count, element: window.element)
     }
     let ids = Set(ordered.map(\.id))
     recentWindowID = frontToBack.first(where: ids.contains) ?? ordered.first?.id ?? 0
@@ -79,14 +80,14 @@ extension SwitcherApp {
     let info =
       CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
       ?? []
-    let onScreen = info.compactMap { entry -> (pid: pid_t, id: CGWindowID, isSubstantial: Bool)? in
+    let onScreen = info.compactMap { entry -> (pid: pid_t, id: CGWindowID, frame: CGRect, isSubstantial: Bool)? in
       guard entry[kCGWindowLayer as String] as? Int == 0, let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
         let id = entry[kCGWindowNumber as String] as? CGWindowID, pid != ownPID,
         let boundsInfo = entry[kCGWindowBounds as String] as? NSDictionary,
         let bounds = CGRect(dictionaryRepresentation: boundsInfo), displays.contains(where: bounds.intersects)
       else { return nil }
       let isVisible = entry[kCGWindowAlpha as String] as? Double ?? 1 > 0
-      return (pid, id, isVisible && min(bounds.width, bounds.height) >= minimumUnmatchedSize)
+      return (pid, id, bounds, isVisible && min(bounds.width, bounds.height) >= minimumUnmatchedSize)
     }
     let pids = Array(Set(onScreen.map(\.pid)))
     let accessibility = Mutex<[pid_t: [AccessibilityWindow]]>([:])
@@ -98,12 +99,13 @@ extension SwitcherApp {
       let axWindows = accessibility.withLock { $0[pid] }
       guard let app = NSRunningApplication(processIdentifier: pid), !app.isHidden else { return nil }
       let cgWindows = onScreen.filter { $0.pid == pid }
-      let cgIDs = Set(cgWindows.map(\.id))
       let matchedIDs = Set((axWindows ?? []).map(\.id))
-      let listed = (axWindows ?? []).filter { $0.isWindow && cgIDs.contains($0.id) }
-        .map { (id: $0.id, title: $0.title, element: Optional($0.element)) }
+      let frames = Dictionary(cgWindows.map { ($0.id, $0.frame) }) { first, _ in first }
+      let listed = (axWindows ?? []).compactMap { window in
+        frames[window.id].flatMap { window.isWindow ? (window.id, window.title, Optional(window.element), $0) : nil }
+      }
       let unmatched = cgWindows.filter { $0.isSubstantial && !matchedIDs.contains($0.id) }
-        .map { (id: $0.id, title: String?.none, element: AXUIElement?.none) }
+        .map { (id: $0.id, title: String?.none, element: AXUIElement?.none, frame: $0.frame) }
       guard !listed.isEmpty || !unmatched.isEmpty else { return nil }
       return SwitcherApp(
         id: pid, name: app.localizedName ?? app.bundleIdentifier ?? "", icon: app.icon ?? NSImage(),

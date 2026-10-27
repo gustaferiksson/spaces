@@ -7,7 +7,7 @@ struct SwitcherAppTests {
   private let element = AXUIElementCreateApplication(1)
 
   private func app(_ pid: pid_t, _ name: String) -> SwitcherApp {
-    SwitcherApp(id: pid, name: name, icon: NSImage(), windows: [(1, "Window", element)], frontToBack: [])
+    SwitcherApp(id: pid, name: name, icon: NSImage(), windows: [(1, "Window", element, .zero)], frontToBack: [])
   }
 
   @Test func appsSortByNameLikeFinder() {
@@ -39,7 +39,7 @@ struct SwitcherAppTests {
   @Test func windowsKeepCreationOrderAndNumberUntitledOnes() {
     let app = SwitcherApp(
       id: 1, name: "Mail", icon: NSImage(),
-      windows: [(30, nil, element), (10, "Inbox — Mail", element), (20, "", element)], frontToBack: [99, 30, 10])
+      windows: [(30, nil, element, .zero), (10, "Inbox — Mail", element, .zero), (20, "", element, .zero)], frontToBack: [99, 30, 10])
     #expect(app.windows.map(\.id) == [10, 20, 30])
     #expect(app.windows.map(\.title) == ["Inbox", "Untitled Window", "Untitled Window 2"])
     #expect(app.windows.map(\.isUntitled) == [false, true, true])
@@ -91,26 +91,67 @@ struct SwitcherGridTests {
 }
 
 @MainActor
-struct PreviewLayoutTests {
+struct SwitcherLayoutTests {
+  private let screenContent = CGSize(width: 1360, height: 848)
+
+  private func previews(_ count: Int, _ width: CGFloat, _ height: CGFloat) -> (columns: Int, size: CGSize) {
+    WindowSwitcher.layout(count: count, in: CGSize(width: width, height: height), maxWidth: 320, labelHeight: 24)
+  }
+
+  private func stacks(_ count: Int) -> (columns: Int, size: CGSize) {
+    WindowSwitcher.layout(count: count, in: screenContent, maxWidth: 480, labelHeight: 40)
+  }
+
   @Test func wideAreaFitsOneRowAtTheMaximumWidth() {
-    let layout = WindowSwitcher.previewLayout(count: 3, in: CGSize(width: 1200, height: 400))
+    let layout = previews(3, 1200, 400)
     #expect(layout.columns == 3)
     #expect(layout.size == CGSize(width: 320, height: 200))
   }
 
   @Test func shortAreaWrapsIntoBalancedRows() {
-    let layout = WindowSwitcher.previewLayout(count: 6, in: CGSize(width: 1416, height: 408))
+    let layout = previews(6, 1416, 408)
     #expect(layout.columns == 3)
     #expect(layout.size == CGSize(width: 260, height: 160))
   }
 
   @Test func sizesStayOnTheFourPointGrid() {
-    let layout = WindowSwitcher.previewLayout(count: 5, in: CGSize(width: 1001, height: 333))
+    let layout = previews(5, 1001, 333)
     #expect(layout.size.width.truncatingRemainder(dividingBy: 4) == 0)
     #expect(layout.size.height.truncatingRemainder(dividingBy: 4) == 0)
   }
 
   @Test func tinyAreaKeepsAMinimumWidth() {
-    #expect(WindowSwitcher.previewLayout(count: 4, in: CGSize(width: 200, height: 40)).size.width == 96)
+    #expect(previews(4, 200, 40).size.width == 96)
+  }
+
+  @Test func fewStacksGrowToTheMaximumSize() {
+    #expect(stacks(4).columns == 2)
+    #expect(stacks(4).size == CGSize(width: 480, height: 300))
+  }
+
+  @Test func equalSizesPreferFewerRows() {
+    #expect(stacks(2).columns == 2)
+  }
+
+  @Test func manyStacksShrinkIntoBalancedRows() {
+    #expect(stacks(10).columns == 4)
+    #expect(stacks(10).size == CGSize(width: 324, height: 200))
+  }
+
+  @Test func cellsAreUniformAndCentredWithTheLastRowCentred() {
+    let rect = CGRect(origin: CGPoint(x: 76, y: 86), size: screenContent)
+    let cells = WindowSwitcher.cells(
+      count: 10, columns: 4, slot: CGSize(width: 324, height: 200), labelHeight: 40, in: rect)
+    #expect(cells[0] == CGRect(x: 76, y: 126, width: 340, height: 256))
+    #expect(cells[5].minX - cells[4].minX == 340)
+    #expect(cells[8].minX == 416)
+    #expect(cells[9] == CGRect(x: 756, y: 638, width: 340, height: 256))
+    #expect(Set(cells.map(\.size)).count == 1)
+  }
+
+  @Test func faceFitsTheSlotBottomAligned() {
+    let slot = CGRect(x: 0, y: 0, width: 320, height: 200)
+    #expect(WindowSwitcher.fit(CGSize(width: 800, height: 1000), in: slot) == CGRect(x: 80, y: 0, width: 160, height: 200))
+    #expect(WindowSwitcher.fit(CGSize(width: 1600, height: 400), in: slot) == CGRect(x: 0, y: 120, width: 320, height: 80))
   }
 }

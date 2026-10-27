@@ -23,7 +23,7 @@ struct SwitcherSettings: View {
       Section {
         Toggle(isOn: $engine.windowSwitcherEnabled) {
           Text("Window switcher")
-          Text("Show the apps with windows on this Space and previews of their windows, from a hot corner or a shortcut.")
+          Text("Show previews of the windows on this Space, stacked by app, from a hot corner or a shortcut.")
         }
       }
 
@@ -71,6 +71,11 @@ struct SwitcherSettings: View {
               ? "Shows a live preview of each window."
               : "Strongly recommended. Without Screen Recording access, windows show as title cards. After allowing it, quit and reopen Spaces.")
         }
+        Toggle(isOn: $settings.switcherAnimates) {
+          Text("Animate windows")
+          Text("Previews move between each window's place on screen and the grid, like Mission Control.")
+        }
+        .disabled(!settings.windowSwitcherEnabled)
       }
     }
     .formStyle(.grouped)
