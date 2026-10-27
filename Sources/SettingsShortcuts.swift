@@ -41,7 +41,7 @@ struct ShortcutsSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(height: 640)
+    .frame(minHeight: 640)
   }
 }
 

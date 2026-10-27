@@ -105,7 +105,7 @@ struct SnapAreasSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(height: macOSTiles ? 644 : 548)
+    .frame(minHeight: macOSTiles ? 644 : 548)
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
       macOSTiles =
         UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: "EnableTilingByEdgeDrag") as? Bool ?? true
