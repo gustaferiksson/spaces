@@ -12,12 +12,16 @@ public final class WindowSwitcher {
   static let tileSize: CGFloat = 112
   static let tileSpacing: CGFloat = 4
   static let maxColumns = 8
-  static let thumbnailWidth: CGFloat = 240
+  static let maxPreviewWidth: CGFloat = 320
+  static let previewAspect: CGFloat = 0.625
+  static let previewInset: CGFloat = 8
+  static let previewTitleHeight: CGFloat = 24
   private static let expandDelay: Duration = .milliseconds(200)
 
   private(set) var apps: [SwitcherApp] = []
   private(set) var columns = 1
-  private(set) var thumbnails: [CGWindowID: CGImage] = [:]
+  private(set) var size = CGSize.zero
+  public var thumbnails: [CGWindowID: CGImage] = [:]
   public var selectedApp: pid_t?
   public var expandedApp: pid_t?
   public var selectedWindow: CGWindowID?
@@ -25,7 +29,7 @@ public final class WindowSwitcher {
   @ObservationIgnored private let panel = SwitcherPanel()
   @ObservationIgnored private var clickMonitor: Any?
   @ObservationIgnored private var expandTask: Task<Void, Never>?
-  @ObservationIgnored private var shareableContent: SCShareableContent?
+  @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
   public init() {
     panel.contentView = NSHostingView(rootView: SwitcherView(switcher: self))
@@ -54,44 +58,79 @@ public final class WindowSwitcher {
     let mouse = NSEvent.mouseLocation
     let screen = NSScreen.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(mouse) } ?? NSScreen.main
     guard let screen else { return }
-    load(SwitcherApp.onCurrentSpace(), width: screen.visibleFrame.width)
-    if trigger == .shortcut { selectedApp = apps.first?.id }
+    collapse()
+    selectedApp = trigger == .shortcut ? apps.first?.id : nil
+    load(apps, in: screen.visibleFrame.size)
     panel.setFrame(screen.visibleFrame, display: false)
-    panel.alphaValue = 0
     panel.makeKeyAndOrderFront(nil)
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.12
-      panel.animator().alphaValue = 1
-    }
     clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
       [weak self] _ in
       MainActor.assumeIsolated { self?.close() }
     }
-    guard CGPreflightScreenCaptureAccess() else { return }
-    Task {
-      let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+    refresh()
+  }
+
+  public func refresh() {
+    let primaryHeight = NSScreen.screens.first?.frame.maxY ?? 0
+    let displays = NSScreen.screens.map {
+      CGRect(x: $0.frame.minX, y: primaryHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height)
+    }
+    refreshTask?.cancel()
+    refreshTask = Task {
+      let fresh = await Task.detached(priority: .userInitiated) { SwitcherApp.onCurrentSpace(displays: displays) }.value
+      guard !Task.isCancelled else { return }
+      load(fresh, in: size)
       guard panel.isVisible else { return }
-      shareableContent = content
-      if let selectedWindow { loadThumbnail(selectedWindow) }
+      await captureThumbnails()
     }
   }
 
-  public func load(_ apps: [SwitcherApp], width: CGFloat) {
+  public func load(_ apps: [SwitcherApp], in size: CGSize) {
     self.apps = apps
-    let fitting = Int((width * 0.8 + Self.tileSpacing) / (Self.tileSize + Self.tileSpacing))
+    self.size = size
+    let fitting = Int((size.width * 0.8 + Self.tileSpacing) / (Self.tileSize + Self.tileSpacing))
     columns = max(1, min(apps.count, Self.maxColumns, fitting))
-    selectedApp = nil
-    expandedApp = nil
-    selectedWindow = nil
-    thumbnails = [:]
+    let windowIDs = Set(apps.flatMap { $0.windows.map(\.id) })
+    thumbnails = thumbnails.filter { windowIDs.contains($0.key) }
+    if let selectedApp, !apps.contains(where: { $0.id == selectedApp }) { self.selectedApp = apps.first?.id }
+    if let expandedApp, !apps.contains(where: { $0.id == expandedApp }) { collapse() }
+    if let selectedWindow, !windowIDs.contains(selectedWindow) { self.selectedWindow = nil }
+  }
+
+  var gridSize: CGSize {
+    let rows = CGFloat((apps.count + columns - 1) / columns)
+    let width = CGFloat(columns) * (Self.tileSize + Self.tileSpacing) - Self.tileSpacing
+    return CGSize(width: width, height: max(0, rows * (Self.tileSize + Self.tileSpacing) - Self.tileSpacing))
+  }
+
+  var gridTop: CGFloat {
+    max(16, ((size.height - gridSize.height - 32) / 3 / 4).rounded(.down) * 4)
+  }
+
+  var previewLayout: (columns: Int, size: CGSize) {
+    let count = apps.first { $0.id == expandedApp }?.windows.count ?? 0
+    let available = CGSize(width: size.width - 96, height: size.height - gridTop - gridSize.height - 80)
+    return Self.previewLayout(count: count, in: available)
+  }
+
+  static func previewLayout(count: Int, in available: CGSize) -> (columns: Int, size: CGSize) {
+    guard count > 0 else { return (1, .zero) }
+    let options = (1...count).map { rowCount in
+      let columns = (count + rowCount - 1) / rowCount
+      let rows = CGFloat(rowCount)
+      let byWidth = available.width / CGFloat(columns) - 2 * previewInset
+      let byHeight = (available.height / rows - 2 * previewInset - previewTitleHeight) / previewAspect
+      let width = max(96, (min(maxPreviewWidth, byWidth, byHeight) / 4).rounded(.down) * 4)
+      return (columns: columns, size: CGSize(width: width, height: (width * previewAspect / 4).rounded(.down) * 4))
+    }
+    return options.max { ($0.size.width, $0.columns) < ($1.size.width, $1.columns) }!
   }
 
   public func close() {
     clickMonitor.map(NSEvent.removeMonitor)
     clickMonitor = nil
     expandTask?.cancel()
-    shareableContent = nil
-    thumbnails = [:]
+    refreshTask?.cancel()
     panel.orderOut(nil)
   }
 
@@ -104,7 +143,9 @@ public final class WindowSwitcher {
       element.map { AXUIElementCopyAttributeValue($0, kAXRoleAttribute as CFString, &role) == .success }
       ?? (NSRunningApplication(processIdentifier: app.id)?.isTerminated == false)
     guard exists else {
-      load(SwitcherApp.onCurrentSpace(), width: panel.frame.width)
+      selectedApp = nil
+      collapse()
+      refresh()
       return
     }
     AXUIElementSetAttributeValue(appElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
@@ -117,9 +158,9 @@ public final class WindowSwitcher {
 
   func hover(_ app: SwitcherApp?) {
     expandTask?.cancel()
-    guard let app, expandedApp == nil || expandedApp == app.id else { return }
+    guard let app else { return }
     selectedApp = app.id
-    guard app.windows.count > 1, expandedApp != app.id else { return }
+    guard expandedApp != app.id else { return }
     expandTask = Task { [weak self] in
       try? await Task.sleep(for: Self.expandDelay)
       guard !Task.isCancelled, let self else { return }
@@ -135,7 +176,7 @@ public final class WindowSwitcher {
 
   func selectWindow(_ id: CGWindowID) {
     selectedWindow = id
-    loadThumbnail(id)
+    selectedApp = expandedApp
   }
 
   static func step(from index: Int?, dx: Int, dy: Int, count: Int, columns: Int) -> Int? {
@@ -161,49 +202,52 @@ public final class WindowSwitcher {
     } else if keyCode == kVK_Space {
       if expanded != nil {
         collapse()
-      } else if let selected, selected.windows.count > 1 {
+      } else if let selected {
         expandedApp = selected.id
         selectWindow(selected.windows[0].id)
       }
-    } else if let expanded {
-      moveInStack(expanded, keyCode: keyCode)
     } else {
-      moveInGrid(keyCode: keyCode)
+      move(in: expanded, keyCode: keyCode)
     }
   }
 
-  private func moveInStack(_ app: SwitcherApp, keyCode: Int) {
-    if keyCode == kVK_LeftArrow {
+  private func move(in expanded: SwitcherApp?, keyCode: Int) {
+    let moves = [kVK_LeftArrow: (-1, 0), kVK_RightArrow: (1, 0), kVK_UpArrow: (0, -1), kVK_DownArrow: (0, 1)]
+    guard let (dx, dy) = moves[keyCode] else { return }
+    guard let expanded else {
+      let index = apps.firstIndex { $0.id == selectedApp }
+      selectedApp = Self.step(from: index, dx: dx, dy: dy, count: apps.count, columns: columns).map { apps[$0].id }
+      return
+    }
+    let index = expanded.windows.firstIndex { $0.id == selectedWindow }
+    let previewColumns = previewLayout.columns
+    guard dx >= 0 || (index ?? 0) % previewColumns != 0 else {
       collapse()
       return
     }
-    let delta = keyCode == kVK_UpArrow ? -1 : keyCode == kVK_DownArrow ? 1 : 0
-    guard delta != 0 else { return }
-    let index = app.windows.firstIndex { $0.id == selectedWindow }.map { $0 + delta } ?? 0
-    selectWindow(app.windows[min(max(index, 0), app.windows.count - 1)].id)
+    let next = Self.step(from: index, dx: dx, dy: dy, count: expanded.windows.count, columns: previewColumns)
+    next.map { selectWindow(expanded.windows[$0].id) }
   }
 
-  private func moveInGrid(keyCode: Int) {
-    let moves = [kVK_LeftArrow: (-1, 0), kVK_RightArrow: (1, 0), kVK_UpArrow: (0, -1), kVK_DownArrow: (0, 1)]
-    guard let (dx, dy) = moves[keyCode] else { return }
-    let index = apps.firstIndex { $0.id == selectedApp }
-    let next = Self.step(from: index, dx: dx, dy: dy, count: apps.count, columns: columns)
-    selectedApp = next.map { apps[$0].id }
-  }
-
-  private func loadThumbnail(_ id: CGWindowID) {
-    guard thumbnails[id] == nil, let window = shareableContent?.windows.first(where: { $0.windowID == id }) else { return }
-    let configuration = SCStreamConfiguration()
-    let scale = panel.backingScaleFactor * Self.thumbnailWidth / max(window.frame.width, 1)
-    configuration.width = Int(window.frame.width * scale)
-    configuration.height = Int(window.frame.height * scale)
-    configuration.showsCursor = false
-    let filter = SCContentFilter(desktopIndependentWindow: window)
-    Task {
-      guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration),
-        panel.isVisible
-      else { return }
-      thumbnails[id] = image
+  private func captureThumbnails() async {
+    guard CGPreflightScreenCaptureAccess(),
+      let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+    else { return }
+    let scale = panel.backingScaleFactor
+    let windows = apps.flatMap(\.windows).compactMap { window in content.windows.first { $0.windowID == window.id } }
+    for window in windows {
+      Task {
+        let configuration = SCStreamConfiguration()
+        let maxHeight = Self.maxPreviewWidth * Self.previewAspect
+        let fit = scale * min(1, Self.maxPreviewWidth / max(window.frame.width, 1), maxHeight / max(window.frame.height, 1))
+        configuration.width = Int(window.frame.width * fit)
+        configuration.height = Int(window.frame.height * fit)
+        configuration.showsCursor = false
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        else { return }
+        thumbnails[window.windowID] = image
+      }
     }
   }
 }

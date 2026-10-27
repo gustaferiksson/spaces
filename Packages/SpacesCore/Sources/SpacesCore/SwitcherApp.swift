@@ -1,14 +1,14 @@
 import AppKit
 import Synchronization
 
-public struct SwitcherWindow: Identifiable, Equatable {
+public struct SwitcherWindow: Identifiable, Equatable, @unchecked Sendable {
   public let id: CGWindowID
   public let title: String
   public let isUntitled: Bool
   let element: AXUIElement?
 }
 
-public struct SwitcherApp: Identifiable, Equatable {
+public struct SwitcherApp: Identifiable, Equatable, Sendable {
   public let id: pid_t
   public let name: String
   public let icon: NSImage
@@ -74,16 +74,11 @@ extension SwitcherApp {
     let isWindow: Bool
   }
 
-  @MainActor
-  public static func onCurrentSpace() -> [SwitcherApp] {
+  static func onCurrentSpace(displays: [CGRect]) -> [SwitcherApp] {
     let ownPID = ProcessInfo.processInfo.processIdentifier
     let info =
       CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
       ?? []
-    let primaryHeight = NSScreen.screens.first?.frame.maxY ?? 0
-    let displays = NSScreen.screens.map {
-      CGRect(x: $0.frame.minX, y: primaryHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height)
-    }
     let onScreen = info.compactMap { entry -> (pid: pid_t, id: CGWindowID, isSubstantial: Bool)? in
       guard entry[kCGWindowLayer as String] as? Int == 0, let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
         let id = entry[kCGWindowNumber as String] as? CGWindowID, pid != ownPID,

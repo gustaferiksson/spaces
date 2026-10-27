@@ -79,6 +79,7 @@ final class Engine {
       [settings] zone in settings.snapActions[zone]
     }
     windowSwitcher = WindowSwitcher()
+    windowSwitcher?.refresh()
     watchHotCorner()
   }
 

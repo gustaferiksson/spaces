@@ -25,20 +25,33 @@ enum SettingsSnapshot {
     if UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark" { NSApp.appearance = NSAppearance(named: .darkAqua) }
     let state = UserDefaults.standard.string(forKey: "switcherState") ?? "grid"
     let apps = state == "empty" ? [] : fixtureApps()
-    let size = CGSize(width: 1200, height: 720)
+    let size = CGSize(width: 1512, height: 944)
     let switcher = WindowSwitcher()
-    switcher.load(apps, width: size.width)
-    let expanded = apps.first { $0.name == (state == "expanded-end" ? "Safari" : "Mail") }
-    switcher.selectedApp = expanded?.id
-    if state.hasPrefix("expanded"), let expanded {
+    switcher.load(apps, in: size)
+    let expanded = apps.first { $0.name == (state == "single" ? "Calendar" : "Terminal") }
+    switcher.selectedApp = state == "grid" ? apps.first { $0.name == "Mail" }?.id : expanded?.id
+    if state != "grid", state != "empty", let expanded {
       switcher.expandedApp = expanded.id
-      switcher.selectedWindow = expanded.windows[1].id
+      switcher.selectedWindow = expanded.windows[expanded.windows.count > 1 ? 1 : 0].id
+      if state != "titlecards" {
+        for (index, window) in expanded.windows.enumerated() {
+          switcher.thumbnails[window.id] = fixtureThumbnail(window.title, isTerminal: expanded.name == "Terminal", variant: index)
+        }
+      }
     }
     let window = NSWindow(
       contentRect: CGRect(origin: CGPoint(x: -4000, y: 0), size: size), styleMask: .borderless, backing: .buffered,
       defer: false)
+    let isSplit = UserDefaults.standard.string(forKey: "switcherBackground") == "split"
     window.backgroundColor = NSColor(patternImage: NSImage(size: size, flipped: false) { rect in
-      NSGradient(colors: [.systemIndigo, .systemTeal, .systemOrange])?.draw(in: rect, angle: -30)
+      if isSplit {
+        NSColor.white.setFill()
+        rect.fill()
+        NSColor.black.setFill()
+        CGRect(x: rect.midX, y: 0, width: rect.width / 2, height: rect.height).fill()
+      } else {
+        NSGradient(colors: [.systemIndigo, .systemTeal, .systemOrange])?.draw(in: rect, angle: -30)
+      }
       return true
     })
     window.contentView = NSHostingView(rootView: SwitcherView(switcher: switcher))
@@ -63,6 +76,7 @@ enum SettingsSnapshot {
         "GitHub - gustaferiksson/spaces", "Hacker News", "Liquid Glass | Apple Developer", "YouTube",
       ]),
       ("/System/Applications/System Settings.app", ["Desktop & Dock"]),
+      ("/System/Applications/Utilities/Terminal.app", ["tine", "roost", "tidy", "crew", "spaces", "anc"]),
       ("/Applications/Xcode.app", ["Spaces — WindowSwitcher.swift", "SpacesCore — SwitcherApp.swift"]),
     ]
     let apps = fixtures.enumerated().map { index, fixture in
@@ -75,6 +89,31 @@ enum SettingsSnapshot {
         frontToBack: windows.reversed().map(\.id))
     }
     return SwitcherApp.sorted(apps)
+  }
+
+  private static func fixtureThumbnail(_ title: String, isTerminal: Bool, variant: Int) -> CGImage? {
+    let size = [CGSize(width: 1440, height: 900), CGSize(width: 1200, height: 900), CGSize(width: 800, height: 1000)][variant % 3]
+    let image = NSImage(size: size, flipped: true) { rect in
+      (isTerminal ? NSColor(white: 0.12, alpha: 1) : .white).setFill()
+      rect.fill()
+      NSColor(white: isTerminal ? 0.2 : 0.92, alpha: 1).setFill()
+      CGRect(x: 0, y: 0, width: rect.width, height: 56).fill()
+      for (offset, color) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() {
+        color.setFill()
+        NSBezierPath(ovalIn: CGRect(x: 24 + CGFloat(offset) * 36, y: 16, width: 24, height: 24)).fill()
+      }
+      let text = NSColor(white: isTerminal ? 0.85 : 0.2, alpha: 1)
+      (title as NSString).draw(
+        at: CGPoint(x: rect.midX - 40, y: 14),
+        withAttributes: [.font: NSFont.systemFont(ofSize: 24, weight: .semibold), .foregroundColor: text])
+      for line in 0..<Int((rect.height - 120) / 48) {
+        (isTerminal ? NSColor.systemGreen : .systemGray).withAlphaComponent(0.6).setFill()
+        let width = (rect.width - 96) * CGFloat((line * 37 + variant * 13) % 60 + 30) / 100
+        CGRect(x: 48, y: 96 + CGFloat(line) * 48, width: width, height: 20).fill()
+      }
+      return true
+    }
+    return image.cgImage(forProposedRect: nil, context: nil, hints: nil)
   }
 
   // cacheDisplay skips Liquid Glass; CGWindowListCreateImage is SDK-obsoleted but still exported and captures own windows without Screen Recording.

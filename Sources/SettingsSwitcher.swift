@@ -23,7 +23,7 @@ struct SwitcherSettings: View {
       Section {
         Toggle(isOn: $engine.windowSwitcherEnabled) {
           Text("Window switcher")
-          Text("Show the apps with windows on this Space, grouped by app, from a hot corner or a shortcut.")
+          Text("Show the apps with windows on this Space and previews of their windows, from a hot corner or a shortcut.")
         }
       }
 
@@ -68,8 +68,8 @@ struct SwitcherSettings: View {
           Text("Window previews")
           Text(
             canRecordScreen
-              ? "Show a preview of the window under the pointer."
-              : "Show a preview of the window under the pointer. Needs Screen Recording access; after allowing it, quit and reopen Spaces.")
+              ? "Shows a live preview of each window."
+              : "Strongly recommended. Without Screen Recording access, windows show as title cards. After allowing it, quit and reopen Spaces.")
         }
       }
     }

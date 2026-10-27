@@ -15,8 +15,8 @@ A menu bar app for instant Space switching and window snapping on macOS 27.
   Settings. Drag a snapped window away and it returns to its earlier size.
 - **Window switcher** (off by default): a hot corner or shortcut shows the apps
   with windows on the current Space, A to Z, so they never reshuffle. Rest on
-  an app to list its windows by title, click to go there. Window previews need
-  Screen Recording access; everything else works without it.
+  an app to see large previews of its windows, click one to go there. Previews
+  need Screen Recording access; without it, windows show as title cards.
 
 All shortcuts can be changed in Settings → Shortcuts. Space switching and
 window snapping can each be turned off in Settings or the menu bar menu.

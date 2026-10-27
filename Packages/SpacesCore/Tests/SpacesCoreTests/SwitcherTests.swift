@@ -47,36 +47,6 @@ struct SwitcherAppTests {
   }
 }
 
-struct CornerDwellTests {
-  private func fired(_ steps: [(inCorner: Bool, buttonDown: Bool, ms: Int)]) -> [Bool] {
-    let start = ContinuousClock.now
-    var dwell = CornerDwell()
-    return steps.map { dwell.update(inCorner: $0.inCorner, buttonDown: $0.buttonDown, now: start + .milliseconds($0.ms)) }
-  }
-
-  @Test func firesOnceAfterTheDelay() {
-    #expect(fired([(true, false, 0), (true, false, 100), (true, false, 150), (true, false, 5000)]) == [false, false, true, false])
-  }
-
-  @Test func leavingRearms() {
-    let steps = [(true, false, 0), (true, false, 200), (false, false, 300), (true, false, 400), (true, false, 550)]
-    #expect(fired(steps) == [false, true, false, false, true])
-  }
-
-  @Test func leavingEarlyRestartsTheDelay() {
-    #expect(fired([(true, false, 0), (false, false, 100), (true, false, 200), (true, false, 300)]) == [false, false, false, false])
-  }
-
-  @Test func heldButtonSpendsTheCornerUntilLeft() {
-    let steps = [(true, true, 0), (true, false, 10), (true, false, 1000), (false, false, 2000), (true, false, 3000), (true, false, 4000)]
-    #expect(fired(steps) == [false, false, false, false, false, true])
-  }
-
-  @Test func pressingWhileDwellingCancels() {
-    #expect(fired([(true, false, 0), (true, true, 100), (true, false, 300)]) == [false, false, false])
-  }
-}
-
 struct ScreenCornerTests {
   private let screen = CGRect(x: 100, y: 0, width: 1000, height: 800)
 
@@ -117,5 +87,30 @@ struct SwitcherGridTests {
   @Test func downIntoAShortLastRowLandsOnTheLastTile() {
     #expect(step(7, dy: 1) == 9)
     #expect(step(4, dy: 1) == 8)
+  }
+}
+
+@MainActor
+struct PreviewLayoutTests {
+  @Test func wideAreaFitsOneRowAtTheMaximumWidth() {
+    let layout = WindowSwitcher.previewLayout(count: 3, in: CGSize(width: 1200, height: 400))
+    #expect(layout.columns == 3)
+    #expect(layout.size == CGSize(width: 320, height: 200))
+  }
+
+  @Test func shortAreaWrapsIntoBalancedRows() {
+    let layout = WindowSwitcher.previewLayout(count: 6, in: CGSize(width: 1416, height: 408))
+    #expect(layout.columns == 3)
+    #expect(layout.size == CGSize(width: 260, height: 160))
+  }
+
+  @Test func sizesStayOnTheFourPointGrid() {
+    let layout = WindowSwitcher.previewLayout(count: 5, in: CGSize(width: 1001, height: 333))
+    #expect(layout.size.width.truncatingRemainder(dividingBy: 4) == 0)
+    #expect(layout.size.height.truncatingRemainder(dividingBy: 4) == 0)
+  }
+
+  @Test func tinyAreaKeepsAMinimumWidth() {
+    #expect(WindowSwitcher.previewLayout(count: 4, in: CGSize(width: 200, height: 40)).size.width == 96)
   }
 }
