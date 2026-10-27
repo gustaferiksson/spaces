@@ -26,7 +26,8 @@ struct SettingsView: View {
         AboutSettings()
       }
     }
-    .frame(width: 560)
+    .frame(minWidth: 560)
+    .windowResizeBehavior(.enabled)
     .onAppear {
       // Without a Dock icon, macOS leaves the menu bar blank after a Space switch while Settings is key.
       NSApp.setActivationPolicy(.regular)

@@ -34,6 +34,8 @@ struct SpacesApp: App {
         .environment(appDelegate.engine)
         .environment(appDelegate.updater)
     }
+    .windowResizability(.contentMinSize)
+    .defaultSize(width: 560, height: 0)
   }
 }
 
