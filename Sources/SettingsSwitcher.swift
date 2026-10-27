@@ -17,7 +17,7 @@ struct SwitcherSettings: View {
 
   var body: some View {
     @Bindable var engine = engine
-    let cornerConflicts = settings.switcherCorner.map(macOSCorners.contains) ?? false
+    let cornerConflicts = settings.windowSwitcherEnabled && settings.switcherCorner.map(macOSCorners.contains) ?? false
     Form {
       Section {
         Toggle(isOn: $engine.windowSwitcherEnabled) {

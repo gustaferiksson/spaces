@@ -1,9 +1,13 @@
 import SwiftUI
 
-struct SwitcherView: View {
+public struct SwitcherView: View {
   let switcher: WindowSwitcher
 
-  var body: some View {
+  public init(switcher: WindowSwitcher) {
+    self.switcher = switcher
+  }
+
+  public var body: some View {
     let rows = stride(from: 0, to: switcher.apps.count, by: switcher.columns).map {
       Array(switcher.apps[$0..<min($0 + switcher.columns, switcher.apps.count)])
     }
@@ -20,6 +24,8 @@ struct SwitcherView: View {
           .frame(width: 360)
           .padding(16)
           .glassEffect(.regular, in: .rect(cornerRadius: 24))
+          .contentShape(.rect(cornerRadius: 24))
+          .onTapGesture {}
         } else {
           VStack(alignment: .leading, spacing: WindowSwitcher.tileSpacing) {
             ForEach(rows.indices, id: \.self) { row in
@@ -36,6 +42,8 @@ struct SwitcherView: View {
           }
           .padding(16)
           .glassEffect(.regular, in: .rect(cornerRadius: 24))
+          .contentShape(.rect(cornerRadius: 24))
+          .onTapGesture {}
         }
       }
     }
@@ -91,19 +99,19 @@ private struct SwitcherTile: View {
       .contentShape(.rect)
     }
     .buttonStyle(.plain)
-    .onHover { if $0 { switcher.hoverBegan(app) } else { switcher.hoverEnded() } }
-    .overlay(alignment: anchor) {
-      if isExpanded {
-        ExpandedStack(app: app, switcher: switcher, thumbnailFirst: anchor.horizontal == .trailing)
-          .fixedSize()
-      }
-    }
-    .zIndex(isExpanded ? 1 : 0)
     .accessibilityLabel("\(app.name), \(count == 1 ? "1 window" : "\(count) windows")")
     .accessibilityAction(named: "Show Windows") {
       guard count > 1 else { return }
       switcher.expandedApp = app.id
     }
+    .onHover { switcher.hover($0 ? app : nil) }
+    .overlay(alignment: anchor) {
+      if isExpanded {
+        ExpandedStack(app: app, switcher: switcher, edge: anchor.horizontal)
+          .fixedSize()
+      }
+    }
+    .zIndex(isExpanded ? 1 : 0)
   }
 }
 
@@ -113,7 +121,7 @@ private struct ExpandedStack: View {
 
   let app: SwitcherApp
   let switcher: WindowSwitcher
-  let thumbnailFirst: Bool
+  let edge: HorizontalAlignment
 
   var body: some View {
     let thumbnail = switcher.selectedWindow.flatMap { switcher.thumbnails[$0] }.map { image in
@@ -126,9 +134,9 @@ private struct ExpandedStack: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
     }
     HStack(alignment: .top, spacing: 8) {
-      if thumbnailFirst { thumbnail }
+      if edge == .trailing { thumbnail }
       card
-      if !thumbnailFirst { thumbnail }
+      if edge != .trailing { thumbnail }
     }
     .onHover { if !$0 { switcher.collapse() } }
   }
@@ -175,7 +183,9 @@ private struct ExpandedStack: View {
             .onHover { if $0 { switcher.selectWindow(window.id) } }
           }
         }
+        .scrollTargetLayout()
       }
+      .scrollPosition(id: Binding(get: { switcher.selectedWindow }, set: { _ in }))
       .scrollBounceBehavior(.basedOnSize)
       .frame(height: Self.rowHeight * CGFloat(min(app.windows.count, Self.visibleRows)))
     }

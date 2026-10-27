@@ -51,8 +51,8 @@ and every trigger does nothing without Accessibility access.
     dropped.
   - A layer 0 window with no Accessibility match (Java, Wine and some Electron windows) is listed as title-less when
     it is at least 100 x 100 pt and not fully transparent. It is focused by activating its app.
-  - Apps are queried concurrently off the main thread with a 100 ms Accessibility timeout. An app that does not
-    answer still gets its tile, built from its CG windows by the same size rule.
+  - Apps are queried in parallel (the open waits for the slowest), each Accessibility call with a 100 ms timeout. An
+    app that does not answer still gets its tile, built from its CG windows by the same size rule.
   - Decision: all displays, not only the panel's display. "Displays have separate Spaces" makes the current Space
     per display, but the panel is about getting to a window quickly, and hiding the other display's windows means
     hunting for the right corner. Grouping by app works the same either way.
@@ -163,18 +163,18 @@ and every trigger does nothing without Accessibility access.
 
 ## Focusing a window
 
+0. Check the window still exists (its `AXRole` reads; for a window without an Accessibility element, its app is
+   still running). If not, re-enumerate, keep the panel open and stop.
 1. Set the app's `AXFrontmost` to true. Cooperative activation can refuse `NSRunningApplication.activate()` from a
    background app, while the Accessibility route does not.
 2. `AXRaise` on the window and set its `AXMain` to true. Doing this after activation keeps the app from re-keying its
    previous main window. Windows without an Accessibility element stop after step 1.
 3. Close the panel.
 
-If the raise fails because the window is gone, the panel re-enumerates and stays open.
-
 ## Live changes while open
 
 - The panel is open for about a second, so it does not watch for changes. The list is a snapshot taken on open.
-- Picking a window that has closed meanwhile (the raise fails) re-enumerates and keeps the panel open, with nothing
+- Picking a window that has closed meanwhile re-enumerates and keeps the panel open, with nothing selected or
   expanded.
 - Closes when: the active Space changes, the display configuration changes, or the panel loses key status (another
   app activated, click elsewhere).
@@ -183,8 +183,8 @@ If the raise fails because the window is gone, the panel re-enumerates and stays
 
 - **Accessibility** (already required, status shown in General): without it the triggers do nothing.
 - **Screen Recording** (optional): only for thumbnails. Without it the panel works fully, with no thumbnail and no
-  placeholder. Settings shows an **Allow…** button: it calls `CGRequestScreenCaptureAccess`, which prompts only once,
-  and when that returns false it opens Privacy & Security → Screen Recording. Checked with
+  placeholder. Settings shows an **Allow…** button: the first press calls `CGRequestScreenCaptureAccess`, which
+  prompts only once; later presses open Privacy & Security → Screen Recording. Checked with
   `CGPreflightScreenCaptureAccess` each time Settings becomes active and each time the panel opens. A grant made
   while Spaces runs may need a relaunch before captures work, so the footer says so. macOS periodically asks the
   user to reconfirm apps with Screen Recording access.
@@ -198,13 +198,14 @@ Icon `square.grid.2x2`. Sections:
    (`wvous-*-corner` = 2), if any.
 2. **Hot corner** picker (Off, Top-Left, Top-Right, Bottom-Left, Bottom-Right) and the **Shortcut** row (the same
    recorder as the Shortcuts tab). Footer when both are unset: "Choose a hot corner or shortcut to open it."
-3. When the chosen corner also has a macOS hot corner: "macOS also uses this corner. Set it to - in Hot Corners, or
-   both will open." with an **Open Desktop & Dock…** button. `com.apple.dock` is re-read each time Settings becomes
-   active.
-4. **Window previews**: Screen Recording status, "Shows a preview of the window under the pointer." (Allowed /
-   Allow…).
+3. When the switcher is on and the chosen corner also has a macOS hot corner: "macOS also uses this corner. Set it
+   to - under Hot Corners, or both will open." with an **Open Desktop & Dock…** button. `com.apple.dock` is re-read
+   each time Settings becomes active.
+4. **Window previews**: Screen Recording status, "Show a preview of the window under the pointer." (Allowed /
+   Allow…), plus the relaunch note while not allowed.
 
-The hot corner and shortcut rows are disabled while the toggle is off. The menu bar menu gets a **Window Switcher**
+The hot corner and shortcut rows are disabled while the toggle is off. Restore Defaults in the Shortcuts tab leaves
+the switcher shortcut alone. The menu bar menu gets a **Window Switcher**
 toggle next to the other two features.
 
 ## Out of scope

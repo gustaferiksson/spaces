@@ -23,8 +23,6 @@ public final class WindowSwitcher {
   public var selectedWindow: CGWindowID?
 
   @ObservationIgnored private let panel = SwitcherPanel()
-  @ObservationIgnored private var observers: [(center: NotificationCenter, token: any NSObjectProtocol)] = []
-  @ObservationIgnored private var keyMonitor: Any?
   @ObservationIgnored private var clickMonitor: Any?
   @ObservationIgnored private var expandTask: Task<Void, Never>?
   @ObservationIgnored private var shareableContent: SCShareableContent?
@@ -36,22 +34,16 @@ public final class WindowSwitcher {
       (.default, NSApplication.didChangeScreenParametersNotification, nil),
       (.default, NSWindow.didResignKeyNotification, panel),
     ]
-    observers = closeOn.map { center, name, object in
-      (center, center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+    for (center, name, object) in closeOn {
+      center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.close() }
-      })
+      }
     }
-    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      guard let self, self.panel.isKeyWindow else { return event }
+    NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      guard let self, self.panel.isKeyWindow, !event.modifierFlags.contains(.command) else { return event }
       self.handleKey(Int(event.keyCode))
       return nil
     }
-  }
-
-  isolated deinit {
-    observers.forEach { $0.center.removeObserver($0.token) }
-    keyMonitor.map(NSEvent.removeMonitor)
-    clickMonitor.map(NSEvent.removeMonitor)
   }
 
   public func toggle(from trigger: SwitcherTrigger) {
@@ -60,7 +52,8 @@ public final class WindowSwitcher {
       return
     }
     let mouse = NSEvent.mouseLocation
-    guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main else { return }
+    let screen = NSScreen.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(mouse) } ?? NSScreen.main
+    guard let screen else { return }
     load(SwitcherApp.onCurrentSpace(), width: screen.visibleFrame.width)
     if trigger == .shortcut { selectedApp = apps.first?.id }
     panel.setFrame(screen.visibleFrame, display: false)
@@ -76,7 +69,9 @@ public final class WindowSwitcher {
     }
     guard CGPreflightScreenCaptureAccess() else { return }
     Task {
-      shareableContent = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+      let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+      guard panel.isVisible else { return }
+      shareableContent = content
       if let selectedWindow { loadThumbnail(selectedWindow) }
     }
   }
@@ -91,36 +86,38 @@ public final class WindowSwitcher {
     thumbnails = [:]
   }
 
-  public var content: some View { SwitcherView(switcher: self) }
-
   public func close() {
-    guard panel.isVisible else { return }
-    panel.orderOut(nil)
-    expandTask?.cancel()
     clickMonitor.map(NSEvent.removeMonitor)
     clickMonitor = nil
+    expandTask?.cancel()
     shareableContent = nil
     thumbnails = [:]
+    panel.orderOut(nil)
   }
 
   func focus(_ app: SwitcherApp, window id: CGWindowID) {
+    let appElement = AXUIElementCreateApplication(app.id)
+    AXUIElementSetMessagingTimeout(appElement, 0.25)
     let element = app.windows.first { $0.id == id }?.element
-    let raised =
-      AXUIElementSetAttributeValue(
-        AXUIElementCreateApplication(app.id), kAXFrontmostAttribute as CFString, kCFBooleanTrue) == .success
-      && element.map { AXUIElementPerformAction($0, kAXRaiseAction as CFString) == .success } ?? true
-    guard raised else {
-      apps = SwitcherApp.onCurrentSpace()
-      expandedApp = nil
-      selectedWindow = nil
+    var role: CFTypeRef?
+    let exists =
+      element.map { AXUIElementCopyAttributeValue($0, kAXRoleAttribute as CFString, &role) == .success }
+      ?? (NSRunningApplication(processIdentifier: app.id)?.isTerminated == false)
+    guard exists else {
+      load(SwitcherApp.onCurrentSpace(), width: panel.frame.width)
       return
     }
-    if let element { AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue) }
+    AXUIElementSetAttributeValue(appElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+    if let element {
+      AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+      AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
+    }
     close()
   }
 
-  func hoverBegan(_ app: SwitcherApp) {
+  func hover(_ app: SwitcherApp?) {
     expandTask?.cancel()
+    guard let app, expandedApp == nil || expandedApp == app.id else { return }
     selectedApp = app.id
     guard app.windows.count > 1, expandedApp != app.id else { return }
     expandTask = Task { [weak self] in
@@ -129,10 +126,6 @@ public final class WindowSwitcher {
       self.expandedApp = app.id
       self.selectedWindow = nil
     }
-  }
-
-  func hoverEnded() {
-    expandTask?.cancel()
   }
 
   func collapse() {

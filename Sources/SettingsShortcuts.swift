@@ -7,6 +7,7 @@ struct ShortcutsSettings: View {
   @Environment(Engine.self) private var engine
 
   var body: some View {
+    let defaults = Shortcut.defaults.merging(settings.shortcuts.filter { $0.key == .windowSwitcher }) { $1 }
     Form {
       Section("Spaces") {
         ShortcutRow(title: "Previous Space", action: .previousSpace)
@@ -33,10 +34,10 @@ struct ShortcutsSettings: View {
         HStack {
           Spacer()
           Button("Restore Defaults") {
-            settings.shortcuts = Shortcut.defaults
+            settings.shortcuts = defaults
             engine.registerShortcuts()
           }
-          .disabled(settings.shortcuts == Shortcut.defaults)
+          .disabled(settings.shortcuts == defaults)
         }
       }
     }

@@ -41,7 +41,7 @@ enum SettingsSnapshot {
       NSGradient(colors: [.systemIndigo, .systemTeal, .systemOrange])?.draw(in: rect, angle: -30)
       return true
     })
-    window.contentView = NSHostingView(rootView: switcher.content)
+    window.contentView = NSHostingView(rootView: SwitcherView(switcher: switcher))
     window.orderFrontRegardless()
     try? await Task.sleep(for: .seconds(1.5))
     guard let image = image(of: window) else { exit(1) }
