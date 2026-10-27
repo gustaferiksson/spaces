@@ -7,6 +7,7 @@ struct GeneralSettings: View {
   @Environment(AppUpdater.self) private var updater
   @State private var loginStatus = SMAppService.mainApp.status
   @State private var loginError: String?
+  @State private var contentHeight: CGFloat = 0
 
   var body: some View {
     @Bindable var engine = engine
@@ -99,7 +100,8 @@ struct GeneralSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(height: 680)
+    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height.rounded(.up) } action: { contentHeight = $1 }
+    .frame(minHeight: contentHeight)
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
       loginStatus = SMAppService.mainApp.status
     }

@@ -18,6 +18,6 @@ struct AboutSettings: View {
         .padding(.top, 6)
     }
     .frame(maxWidth: .infinity)
-    .frame(height: 260)
+    .frame(minHeight: 260)
   }
 }
