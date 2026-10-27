@@ -5,6 +5,7 @@ import SwiftUI
 struct ShortcutsSettings: View {
   @Bindable var settings: AppSettings
   @Environment(Engine.self) private var engine
+  @State private var contentHeight: CGFloat = 0
 
   var body: some View {
     Form {
@@ -41,7 +42,8 @@ struct ShortcutsSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(minHeight: 640)
+    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height.rounded(.up) } action: { contentHeight = $1 }
+    .frame(minHeight: contentHeight)
   }
 }
 
