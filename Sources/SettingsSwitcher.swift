@@ -14,6 +14,7 @@ struct SwitcherSettings: View {
   @AppStorage("requestedScreenRecording") private var requestedScreenRecording = false
   @State private var canRecordScreen = CGPreflightScreenCaptureAccess()
   @State private var macOSCorners = Set(ScreenCorner.allCases.filter { macOSHotCornerAction($0) != nil })
+  @State private var contentHeight: CGFloat = 0
 
   var body: some View {
     @Bindable var engine = engine
@@ -73,7 +74,8 @@ struct SwitcherSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(height: cornerConflicts ? 400 : 324)
+    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height.rounded(.up) } action: { contentHeight = $1 }
+    .frame(minHeight: contentHeight)
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
       canRecordScreen = CGPreflightScreenCaptureAccess()
       macOSCorners = Set(ScreenCorner.allCases.filter { macOSHotCornerAction($0) != nil })
