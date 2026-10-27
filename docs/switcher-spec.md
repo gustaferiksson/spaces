@@ -172,7 +172,7 @@ and every trigger does nothing without Accessibility access.
 | Action | Result |
 | --- | --- |
 | Hover a stack | Selects it. |
-| Rest 200 ms on a stack with several windows | Expands it. Moving off before then cancels. After a collapse, the stack under a pointer that has not moved does not expand again. |
+| Rest 200 ms on a stack with several windows | Expands it. Moving off before then cancels. After a collapse, a stack under the resting pointer does not expand again until the pointer leaves and re-enters it. |
 | Click a single-window stack | Focuses that window. |
 | Click a stack with several windows | Expands it at once. |
 | Hover a preview | Selects it. |

@@ -187,8 +187,8 @@ private struct WindowFace: View {
   var body: some View {
     Group {
       if let image {
-        Image(decorative: image, scale: 1)
-          .resizable()
+        Color.clear
+          .overlay { Image(decorative: image, scale: 1).resizable().aspectRatio(contentMode: .fill) }
           .overlay(alignment: .bottomLeading) {
             Image(nsImage: app.icon)
               .resizable()
