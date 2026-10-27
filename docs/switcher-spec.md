@@ -89,10 +89,11 @@ and every trigger does nothing without Accessibility access.
   status without activating Spaces, so the app the user came from stays frontmost until a choice is made.
 - Backdrop: that display's desktop picture (`NSWorkspace.desktopImageURL(for:)`), drawn the way macOS draws it from
   `desktopImageOptions(for:)`: fill when clipping is allowed, fit on the fill colour when not, stretched for
-  "scale axes independently". "Center" is drawn as fit. A black layer at 32% dims it, like Mission Control. Without
+  "scale axes independently". "Center" (no scaling) is drawn as fit. A black layer at 32% dims it, like Mission Control. Without
   a readable picture (or before the first one has loaded) the backdrop is a dark regular material.
 - Wallpapers are decoded off the main thread with `CGImageSourceCreateThumbnailAtIndex` at the largest display's
-  pixel size, when the switcher starts and on every open, and cached per URL. Opening only looks the image up, so it
+  pixel size, at launch and when the switcher is turned on (only while it is on), on every open and after every
+  close, and cached per URL. Opening only looks the image up, so it
   costs nothing; a picture that changed shows from the next open (or as soon as it has loaded).
 - Labels and badges are always light on dark, whatever the system appearance, as in Mission Control.
 - Every size, padding and radius is a multiple of 4 pt. No coloured accents; selection is a 16 pt radius white fill
@@ -100,11 +101,11 @@ and every trigger does nothing without Accessibility access.
 
 ### Stacks
 
-- One stack per app, in a grid inside the visible frame inset by 5% on each side (90% of it). The grid is centred,
-  and a short last row is centred too.
+- One stack per app, in a grid inside the visible frame inset by 5% on each side (90% of it). The grid is centred
+  as a block; a short last row starts at the first column, so the arrow keys move along visual columns.
 - Size: row counts from one up to the app count are tried with balanced columns (10 apps: 10, 5 x 2, 4 x 3, ...);
-  the widest slot wins, ties going to fewer rows. A slot is 16:10, at most 480 pt wide, rounded down to 4 pt and
-  never below 96 pt; each cell adds 8 pt around it and a 40 pt label area below. Every cell has the same size, so
+  the widest slot wins, ties going to fewer rows. A slot is 16:10, at most 480 pt wide, rounded down to 4 pt; the
+  winner is then raised to at least 96 pt; each cell adds 8 pt around it and a 40 pt label area below. Every cell has the same size, so
   column gaps are even whatever the windows' shapes. The same apps on the same display always get the same layout;
   launching or quitting an app can change the tile size and reflow the grid, but never the A to Z order.
 - Face: a live preview of the app's **main window** (its frontmost one), aspect-fit in the slot and aligned to the
@@ -133,8 +134,10 @@ and every trigger does nothing without Accessibility access.
 
 - On every open with Screen Recording access, one `SCShareableContent` call and then a `SCScreenshotManager` capture
   per listed window (`desktopIndependentWindow` filter, at most 640 x 400 pt at the display's scale). Every app's
-  main window is captured first, all at once; the other windows start when those have finished. They run after the
-  overlay is up and fill in as they finish.
+  main window is captured first, all at once; the other windows start when those have finished, unless the overlay
+  closed meanwhile. They run after the overlay is up and fill in as they finish.
+- After the overlay closes (and after the picked window is focused) the windows are enumerated again, so the next
+  open starts from the current frames, stacking order and main windows.
 - Cache: captures are kept per window ID across opens, so a reopen shows the last image at once while a fresh one is
   captured behind it. Entries for windows that are no longer listed are dropped on each enumeration.
 - Title card: until a window has a capture, or always without Screen Recording access, its face is a dark fill with
@@ -172,7 +175,7 @@ and every trigger does nothing without Accessibility access.
 | Action | Result |
 | --- | --- |
 | Hover a stack | Selects it. |
-| Rest 200 ms on a stack with several windows | Expands it. Moving off before then cancels. After a collapse, a stack under the resting pointer does not expand again until the pointer leaves and re-enters it. |
+| Rest 200 ms on a stack with several windows | Expands it. Moving off before then cancels. After a collapse, the stack that was expanded does not expand again until the pointer leaves and re-enters it. |
 | Click a single-window stack | Focuses that window. |
 | Click a stack with several windows | Expands it at once. |
 | Hover a preview | Selects it. |

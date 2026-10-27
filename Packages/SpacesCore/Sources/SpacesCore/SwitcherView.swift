@@ -109,15 +109,14 @@ private struct SwitcherBackdrop: View {
   var body: some View {
     let options = switcher.backdropOptions
     let scaling = (options[.imageScaling] as? NSNumber).flatMap { NSImageScaling(rawValue: $0.uintValue) }
+    let stretches = scaling == .scaleAxesIndependently
+    let fills = stretches || (scaling != .scaleNone && options[.allowClipping] as? Bool ?? true)
     ZStack {
-      if let image = switcher.wallpaper {
+      if let image = switcher.backdropURL.flatMap({ switcher.wallpapers[$0] }) {
         Color(nsColor: options[.fillColor] as? NSColor ?? .black)
-        if scaling == .scaleAxesIndependently {
-          Image(decorative: image, scale: 1).resizable()
-        } else {
-          Image(decorative: image, scale: 1).resizable()
-            .aspectRatio(contentMode: options[.allowClipping] as? Bool ?? true ? .fill : .fit)
-        }
+        Image(decorative: image, scale: 1)
+          .resizable()
+          .aspectRatio(stretches ? switcher.size.width / switcher.size.height : nil, contentMode: fills ? .fill : .fit)
       } else {
         Rectangle().fill(.regularMaterial)
       }

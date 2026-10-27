@@ -31,14 +31,14 @@ enum SettingsSnapshot {
     switcher.place(frame: frame, visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 944), primaryHeight: frame.height)
     switcher.load(apps)
     let wallpaperURL = URL(filePath: "/fixture-wallpaper")
-    fixtureWallpaper(size: frame.size).map { switcher.setWallpaper($0, for: wallpaperURL) }
+    switcher.wallpapers[wallpaperURL] = fixtureWallpaper(size: frame.size)
     switcher.backdropURL = wallpaperURL
     let expanded = apps.max { $0.windows.count < $1.windows.count }
     switcher.selectedApp = apps.first { $0.name == "Mail" }?.id ?? apps.first?.id
     if state == "expanded", let expanded {
       switcher.selectedApp = expanded.id
       switcher.expandedApp = expanded.id
-      switcher.selectedWindow = expanded.windows[1].id
+      switcher.selectedWindow = expanded.windows.dropFirst().first?.id
     }
     if state != "titlecards" {
       for app in apps {

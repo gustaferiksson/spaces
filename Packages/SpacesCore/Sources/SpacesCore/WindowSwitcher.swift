@@ -16,28 +16,29 @@ public final class WindowSwitcher {
   static let stackLabelHeight: CGFloat = 40
   static let previewLabelHeight: CGFloat = 24
   private static let expandDelay: Duration = .milliseconds(200)
+  private static let animation = Animation.smooth(duration: 0.24)
 
   private(set) var apps: [SwitcherApp] = []
   private(set) var size = CGSize.zero
   private(set) var contentRect = CGRect.zero
   private(set) var screenOrigin = CGPoint.zero
   private(set) var pickedWindow: CGWindowID?
-  private(set) var wallpapers: [URL: CGImage] = [:]
+  private(set) var backdropOptions: [NSWorkspace.DesktopImageOptionKey: Any] = [:]
+  public var wallpapers: [URL: CGImage] = [:]
   public var isPresented = false
   public var thumbnails: [CGWindowID: CGImage] = [:]
   public var selectedApp: pid_t?
   public var expandedApp: pid_t?
   public var selectedWindow: CGWindowID?
   public var backdropURL: URL?
-  public var backdropOptions: [NSWorkspace.DesktopImageOptionKey: Any] = [:]
-  public var animation = Animation.smooth(duration: 0.24)
 
   @ObservationIgnored private let animates: () -> Bool
   @ObservationIgnored private let panel = SwitcherPanel()
   @ObservationIgnored private var clickMonitor: Any?
   @ObservationIgnored private var expandTask: Task<Void, Never>?
   @ObservationIgnored private var refreshTask: Task<Void, Never>?
-  @ObservationIgnored private var collapsePoint: CGPoint?
+  @ObservationIgnored private var suppressedApp: pid_t?
+  @ObservationIgnored private var session = 0
 
   public init(animates: @escaping () -> Bool = { true }) {
     self.animates = animates
@@ -61,9 +62,7 @@ public final class WindowSwitcher {
     }
   }
 
-  var motion: Animation? { animates() ? animation : nil }
-
-  var wallpaper: CGImage? { backdropURL.flatMap { wallpapers[$0] } }
+  var motion: Animation? { animates() ? Self.animation : nil }
 
   public func toggle(from trigger: SwitcherTrigger) {
     guard !panel.isVisible else {
@@ -73,15 +72,13 @@ public final class WindowSwitcher {
     let mouse = NSEvent.mouseLocation
     let screen = NSScreen.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(mouse) } ?? NSScreen.main
     guard let screen else { return }
-    var reset = Transaction()
-    reset.disablesAnimations = true
-    withTransaction(reset) {
+    withTransaction(\.disablesAnimations, true) {
       place(frame: screen.frame, visibleFrame: screen.visibleFrame, primaryHeight: NSScreen.screens[0].frame.maxY)
       backdropURL = NSWorkspace.shared.desktopImageURL(for: screen)
       backdropOptions = NSWorkspace.shared.desktopImageOptions(for: screen) ?? [:]
       expandedApp = nil
       selectedWindow = nil
-      collapsePoint = mouse
+      suppressedApp = nil
       selectedApp = trigger == .shortcut ? apps.first?.id : nil
       pickedWindow = nil
       isPresented = motion == nil
@@ -135,10 +132,6 @@ public final class WindowSwitcher {
     if let selectedWindow, !windowIDs.contains(selectedWindow) { self.selectedWindow = nil }
   }
 
-  public func setWallpaper(_ image: CGImage, for url: URL) {
-    wallpapers[url] = image
-  }
-
   private func loadWallpapers() {
     let urls = Set(NSScreen.screens.compactMap { NSWorkspace.shared.desktopImageURL(for: $0) })
     let maxPixels = NSScreen.screens.map { max($0.frame.width, $0.frame.height) * $0.backingScaleFactor }.max() ?? 0
@@ -179,22 +172,22 @@ public final class WindowSwitcher {
       let rows = CGFloat(rowCount)
       let byWidth = available.width / CGFloat(columns) - 2 * previewInset
       let byHeight = (available.height / rows - 2 * previewInset - labelHeight) / previewAspect
-      let width = max(96, (min(maxWidth, byWidth, byHeight) / 4).rounded(.down) * 4)
-      return (columns: columns, size: CGSize(width: width, height: (width * previewAspect / 4).rounded(.down) * 4))
+      return (columns: columns, width: (min(maxWidth, byWidth, byHeight) / 4).rounded(.down) * 4)
     }
-    return options.max { ($0.size.width, $0.columns) < ($1.size.width, $1.columns) }!
+    let best = options.max { ($0.width, $0.columns) < ($1.width, $1.columns) }!
+    let width = max(96, best.width)
+    return (best.columns, CGSize(width: width, height: (width * previewAspect / 4).rounded(.down) * 4))
   }
 
   static func cells(count: Int, columns: Int, slot: CGSize, labelHeight: CGFloat, in rect: CGRect) -> [CGRect] {
     let cell = CGSize(width: slot.width + 2 * previewInset, height: slot.height + labelHeight + 2 * previewInset)
     let rows = (count + columns - 1) / columns
     let top = rect.minY + ((rect.height - CGFloat(rows) * cell.height) / 8).rounded(.down) * 4
+    let left = rect.minX + ((rect.width - CGFloat(min(columns, count)) * cell.width) / 8).rounded(.down) * 4
     return (0..<count).map { index in
-      let row = index / columns
-      let inRow = min(columns, count - row * columns)
-      let left = rect.minX + ((rect.width - CGFloat(inRow) * cell.width) / 8).rounded(.down) * 4
-      return CGRect(
-        origin: CGPoint(x: left + CGFloat(index % columns) * cell.width, y: top + CGFloat(row) * cell.height),
+      CGRect(
+        origin: CGPoint(
+          x: left + CGFloat(index % columns) * cell.width, y: top + CGFloat(index / columns) * cell.height),
         size: cell)
     }
   }
@@ -211,23 +204,22 @@ public final class WindowSwitcher {
     clickMonitor = nil
     expandTask?.cancel()
     refreshTask?.cancel()
+    session += 1
     panel.orderOut(nil)
   }
 
   func dismiss(then finish: @escaping () -> Void = {}) {
     guard isPresented else { return }
     expandTask?.cancel()
-    guard let motion else {
-      close()
+    let token = session
+    let complete = { [weak self] in
+      guard let self, self.session == token else { return }
+      self.close()
       finish()
-      return
+      self.refresh()
     }
-    withAnimation(motion) {
-      isPresented = false
-    } completion: { [weak self] in
-      self?.close()
-      finish()
-    }
+    guard let motion else { return complete() }
+    withAnimation(motion) { isPresented = false } completion: { complete() }
   }
 
   func focus(_ app: SwitcherApp, window id: CGWindowID) {
@@ -256,9 +248,13 @@ public final class WindowSwitcher {
 
   func hover(_ app: SwitcherApp?) {
     expandTask?.cancel()
-    guard let app else { return }
+    guard let app, app.id != suppressedApp else {
+      suppressedApp = nil
+      return
+    }
+    suppressedApp = nil
     selectedApp = app.id
-    guard app.windows.count > 1, NSEvent.mouseLocation != collapsePoint else { return }
+    guard app.windows.count > 1 else { return }
     expandTask = Task { [weak self] in
       try? await Task.sleep(for: Self.expandDelay)
       guard !Task.isCancelled else { return }
@@ -275,11 +271,11 @@ public final class WindowSwitcher {
   }
 
   func collapse() {
+    suppressedApp = expandedApp
     withAnimation(motion) {
       expandedApp = nil
       selectedWindow = nil
     }
-    collapsePoint = NSEvent.mouseLocation
   }
 
   func selectWindow(_ id: CGWindowID) {
@@ -347,6 +343,7 @@ public final class WindowSwitcher {
     let mainIDs = Set(apps.map(\.recentWindowID))
     let windows = apps.flatMap(\.windows).compactMap { window in content.windows.first { $0.windowID == window.id } }
     for pass in [windows.filter { mainIDs.contains($0.windowID) }, windows.filter { !mainIDs.contains($0.windowID) }] {
+      guard !Task.isCancelled else { return }
       let captures = pass.map { window in
         Task {
           let configuration = SCStreamConfiguration()

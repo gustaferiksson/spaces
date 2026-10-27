@@ -29,6 +29,7 @@ final class Engine {
     get { settings.windowSwitcherEnabled }
     set {
       settings.windowSwitcherEnabled = newValue
+      if newValue { windowSwitcher?.refresh() }
       if newValue, settings.switcherCorner == nil {
         settings.switcherCorner = ScreenCorner.allCases.first { macOSHotCornerAction($0) == 2 }
       }
@@ -79,7 +80,7 @@ final class Engine {
       [settings] zone in settings.snapActions[zone]
     }
     windowSwitcher = WindowSwitcher { [settings] in settings.switcherAnimates }
-    windowSwitcher?.refresh()
+    if settings.windowSwitcherEnabled { windowSwitcher?.refresh() }
     watchHotCorner()
   }
 

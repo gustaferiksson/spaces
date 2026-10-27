@@ -99,7 +99,7 @@ struct SwitcherLayoutTests {
   }
 
   private func stacks(_ count: Int) -> (columns: Int, size: CGSize) {
-    WindowSwitcher.layout(count: count, in: screenContent, maxWidth: 480, labelHeight: 40)
+    WindowSwitcher.layout(count: count, in: screenContent, maxWidth: WindowSwitcher.maxStackWidth, labelHeight: WindowSwitcher.stackLabelHeight)
   }
 
   @Test func wideAreaFitsOneRowAtTheMaximumWidth() {
@@ -138,14 +138,14 @@ struct SwitcherLayoutTests {
     #expect(stacks(10).size == CGSize(width: 324, height: 200))
   }
 
-  @Test func cellsAreUniformAndCentredWithTheLastRowCentred() {
+  @Test func cellsAreUniformCentredAndLeftAligned() {
     let rect = CGRect(origin: CGPoint(x: 76, y: 86), size: screenContent)
     let cells = WindowSwitcher.cells(
       count: 10, columns: 4, slot: CGSize(width: 324, height: 200), labelHeight: 40, in: rect)
     #expect(cells[0] == CGRect(x: 76, y: 126, width: 340, height: 256))
     #expect(cells[5].minX - cells[4].minX == 340)
-    #expect(cells[8].minX == 416)
-    #expect(cells[9] == CGRect(x: 756, y: 638, width: 340, height: 256))
+    #expect(cells[8].minX == cells[0].minX)
+    #expect(cells[9] == CGRect(x: 416, y: 638, width: 340, height: 256))
     #expect(Set(cells.map(\.size)).count == 1)
   }
 
