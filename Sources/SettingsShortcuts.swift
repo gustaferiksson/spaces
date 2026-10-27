@@ -45,7 +45,7 @@ struct ShortcutsSettings: View {
   }
 }
 
-private struct ShortcutRow: View {
+struct ShortcutRow: View {
   let title: String
   let action: HotKeyAction
   @Environment(Engine.self) private var engine

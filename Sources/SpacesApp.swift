@@ -9,6 +9,7 @@ struct SpacesApp: App {
     MenuBarExtra(isInserted: $settings.showMenuBarIcon) {
       Toggle("Instant Space Switching", isOn: Bindable(appDelegate.engine).spaceSwitchingEnabled)
       Toggle("Window Snapping", isOn: Bindable(appDelegate.engine).windowSnappingEnabled)
+      Toggle("Window Switcher", isOn: Bindable(appDelegate.engine).windowSwitcherEnabled)
       Divider()
       if !appDelegate.engine.isTrusted {
         Button("Allow Accessibility Access…") { NSWorkspace.shared.open(accessibilitySettingsURL) }

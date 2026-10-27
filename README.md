@@ -13,6 +13,10 @@ A menu bar app for instant Space switching and window snapping on macOS 27.
 - **Snap areas**: drag a window to a screen edge or corner and a translucent
   preview shows where it will land. Each edge and corner's action is set in
   Settings. Drag a snapped window away and it returns to its earlier size.
+- **Window switcher** (off by default): a hot corner or shortcut shows the apps
+  with windows on the current Space, A to Z, so they never reshuffle. Rest on
+  an app to list its windows by title, click to go there. Window previews need
+  Screen Recording access; everything else works without it.
 
 All shortcuts can be changed in Settings → Shortcuts. Space switching and
 window snapping can each be turned off in Settings or the menu bar menu.
@@ -29,6 +33,9 @@ Then:
    ⌃←/→ first.
 3. If you use snap areas, turn off **Drag windows to screen edges to tile** in
    System Settings → Desktop & Dock, so macOS doesn't tile the same drag.
+4. If you give the window switcher a hot corner, set that corner to **-** in
+   System Settings → Desktop & Dock → Hot Corners, so Mission Control doesn't
+   open too.
 
 Spaces updates itself from GitHub Releases.
 
@@ -53,7 +60,7 @@ open -g spaces://left-half
 
 Actions: `previous-space`, `next-space`, `control-center`, `left-half`,
 `right-half`, `maximize`, `first-third`, `center-third`, `last-third`,
-`first-two-thirds`, `last-two-thirds`.
+`first-two-thirds`, `last-two-thirds`, `window-switcher`.
 
 ## How it works
 
