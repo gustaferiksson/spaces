@@ -32,7 +32,9 @@ public final class WindowSwitcher {
   @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
   public init() {
-    panel.contentView = NSHostingView(rootView: SwitcherView(switcher: self))
+    let hostingView = NSHostingView(rootView: SwitcherView(switcher: self))
+    hostingView.sizingOptions = []
+    panel.contentView = hostingView
     let closeOn: [(NotificationCenter, Notification.Name, AnyObject?)] = [
       (NSWorkspace.shared.notificationCenter, NSWorkspace.activeSpaceDidChangeNotification, nil),
       (.default, NSApplication.didChangeScreenParametersNotification, nil),
@@ -92,7 +94,7 @@ public final class WindowSwitcher {
     columns = max(1, min(apps.count, Self.maxColumns, fitting))
     let windowIDs = Set(apps.flatMap { $0.windows.map(\.id) })
     thumbnails = thumbnails.filter { windowIDs.contains($0.key) }
-    if let selectedApp, !apps.contains(where: { $0.id == selectedApp }) { self.selectedApp = apps.first?.id }
+    if let selectedApp, !apps.contains(where: { $0.id == selectedApp }) { self.selectedApp = nil }
     if let expandedApp, !apps.contains(where: { $0.id == expandedApp }) { collapse() }
     if let selectedWindow, !windowIDs.contains(selectedWindow) { self.selectedWindow = nil }
   }
@@ -189,13 +191,14 @@ public final class WindowSwitcher {
   }
 
   private func handleKey(_ keyCode: Int) {
+    expandTask?.cancel()
     let selected = apps.first { $0.id == selectedApp }
     let expanded = apps.first { $0.id == expandedApp }
     if keyCode == kVK_Escape {
       if expanded == nil { close() } else { collapse() }
     } else if keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter {
-      if let expanded, let selectedWindow {
-        focus(expanded, window: selectedWindow)
+      if let expanded {
+        focus(expanded, window: selectedWindow ?? expanded.recentWindowID)
       } else if let selected {
         focus(selected, window: selected.recentWindowID)
       }
@@ -221,7 +224,7 @@ public final class WindowSwitcher {
     }
     let index = expanded.windows.firstIndex { $0.id == selectedWindow }
     let previewColumns = previewLayout.columns
-    guard dx >= 0 || (index ?? 0) % previewColumns != 0 else {
+    guard index.map({ dx >= 0 || $0 % previewColumns != 0 }) ?? true else {
       collapse()
       return
     }

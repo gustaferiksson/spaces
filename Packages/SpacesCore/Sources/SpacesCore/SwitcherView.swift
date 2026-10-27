@@ -43,6 +43,7 @@ public struct SwitcherView: View {
       .contentShape(.rect(cornerRadius: 24))
       .onTapGesture {}
       .padding(.top, rows.isEmpty ? 0 : switcher.gridTop)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: rows.isEmpty ? .center : .top)
     }
   }
 }

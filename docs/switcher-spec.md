@@ -121,7 +121,7 @@ and every trigger does nothing without Accessibility access.
 - Sizing: the box is as wide as possible up to 320 pt, in the space between the grid and 32 pt above the bottom of
   the visible frame, and the panel width less 32 pt margins. Row counts from one up to the window count are tried
   with balanced columns (6 windows: 6, 3 x 2, 2 x 3, ...), and the widest box wins, ties going to fewer rows. Widths
-  round down to 4 pt, never below 96 pt; past that the rows run off the bottom of the screen.
+  round down to 4 pt, never below 96 pt; past that the card is clipped at the bottom of the panel.
 - Captures: on every open with Screen Recording access, one `SCShareableContent` call and then a
   `SCScreenshotManager` capture of every listed window (`desktopIndependentWindow` filter, at most 320 x 200 pt at the
   display's scale), started in A to Z order. They run after the panel is up and fill in as they finish.
