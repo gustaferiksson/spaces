@@ -34,6 +34,7 @@ struct SnapAreasSettings: View {
   @Environment(Engine.self) private var engine
   @State private var macOSTiles = UserDefaults(suiteName: "com.apple.WindowManager")?
     .object(forKey: "EnableTilingByEdgeDrag") as? Bool ?? true
+  @State private var contentHeight: CGFloat = 0
 
   var body: some View {
     @Bindable var engine = engine
@@ -105,7 +106,8 @@ struct SnapAreasSettings: View {
       }
     }
     .formStyle(.grouped)
-    .frame(height: macOSTiles ? 644 : 548)
+    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height.rounded(.up) } action: { contentHeight = $1 }
+    .frame(minHeight: contentHeight)
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
       macOSTiles =
         UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: "EnableTilingByEdgeDrag") as? Bool ?? true

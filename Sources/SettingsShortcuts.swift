@@ -5,8 +5,10 @@ import SwiftUI
 struct ShortcutsSettings: View {
   @Bindable var settings: AppSettings
   @Environment(Engine.self) private var engine
+  @State private var contentHeight: CGFloat = 0
 
   var body: some View {
+    let defaults = Shortcut.defaults.merging(settings.shortcuts.filter { $0.key == .windowSwitcher }) { $1 }
     Form {
       Section("Spaces") {
         ShortcutRow(title: "Previous Space", action: .previousSpace)
@@ -33,19 +35,20 @@ struct ShortcutsSettings: View {
         HStack {
           Spacer()
           Button("Restore Defaults") {
-            settings.shortcuts = Shortcut.defaults
+            settings.shortcuts = defaults
             engine.registerShortcuts()
           }
-          .disabled(settings.shortcuts == Shortcut.defaults)
+          .disabled(settings.shortcuts == defaults)
         }
       }
     }
     .formStyle(.grouped)
-    .frame(height: 640)
+    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height.rounded(.up) } action: { contentHeight = $1 }
+    .frame(minHeight: contentHeight)
   }
 }
 
-private struct ShortcutRow: View {
+struct ShortcutRow: View {
   let title: String
   let action: HotKeyAction
   @Environment(Engine.self) private var engine

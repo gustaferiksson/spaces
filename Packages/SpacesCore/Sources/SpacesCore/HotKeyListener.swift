@@ -12,6 +12,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
   case lastThird = "last-third"
   case firstTwoThirds = "first-two-thirds"
   case lastTwoThirds = "last-two-thirds"
+  case windowSwitcher = "window-switcher"
 }
 
 public struct Shortcut: Codable, Equatable, Sendable {

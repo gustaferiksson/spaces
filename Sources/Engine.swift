@@ -25,7 +25,30 @@ final class Engine {
     }
   }
 
+  var windowSwitcherEnabled: Bool {
+    get { settings.windowSwitcherEnabled }
+    set {
+      settings.windowSwitcherEnabled = newValue
+      if newValue { windowSwitcher?.refresh() }
+      if newValue, settings.switcherCorner == nil {
+        settings.switcherCorner = ScreenCorner.allCases.first { macOSHotCornerAction($0) == 2 }
+      }
+      registerShortcuts()
+      watchHotCorner()
+    }
+  }
+
+  var switcherCorner: ScreenCorner? {
+    get { settings.switcherCorner }
+    set {
+      settings.switcherCorner = newValue
+      watchHotCorner()
+    }
+  }
+
   @ObservationIgnored private let switcher = SpaceSwitcher()
+  @ObservationIgnored private var windowSwitcher: WindowSwitcher?
+  @ObservationIgnored private var hotCorner: HotCorner?
   @ObservationIgnored private let mover: WindowMover
   @ObservationIgnored private var indicator: SpaceIndicator?
   @ObservationIgnored private var hotKeys: HotKeyListener?
@@ -56,6 +79,15 @@ final class Engine {
     snap = SnapController(mover: mover, isEnabled: { [settings] in settings.windowSnappingEnabled }) {
       [settings] zone in settings.snapActions[zone]
     }
+    windowSwitcher = WindowSwitcher { [settings] in settings.switcherAnimates }
+    if settings.windowSwitcherEnabled { windowSwitcher?.refresh() }
+    watchHotCorner()
+  }
+
+  private func watchHotCorner() {
+    hotCorner = nil
+    guard let windowSwitcher, settings.windowSwitcherEnabled, let corner = settings.switcherCorner else { return }
+    hotCorner = HotCorner(corner) { windowSwitcher.toggle(from: .hotCorner) }
   }
 
   func perform(_ action: HotKeyAction) {
@@ -64,6 +96,8 @@ final class Engine {
       mover.perform(windowAction)
     } else if action == .controlCenter {
       toggleControlCenter()
+    } else if action == .windowSwitcher {
+      windowSwitcher?.toggle(from: .shortcut)
     } else if let destination = switcher.switchSpace(action == .previousSpace ? .left : .right) {
       indicator?.show(destination)
     }

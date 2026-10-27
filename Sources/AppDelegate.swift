@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await SettingsSnapshot.capture(to: output) { _ = applicationShouldHandleReopen(NSApp, hasVisibleWindows: false) } }
         return
       }
+      if let output = SettingsSnapshot.switcherOutput {
+        Task { await SettingsSnapshot.captureSwitcher(to: output) }
+        return
+      }
     #endif
     engine.start()
     updater.start()

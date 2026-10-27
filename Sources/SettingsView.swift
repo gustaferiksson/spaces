@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SettingsTab: String {
-  case general, shortcuts, snapAreas, about
+  case general, shortcuts, snapAreas, switcher, about
 }
 
 struct SettingsView: View {
@@ -19,11 +19,15 @@ struct SettingsView: View {
       Tab("Snap Areas", systemImage: "rectangle.split.2x1", value: .snapAreas) {
         SnapAreasSettings(settings: settings)
       }
+      Tab("Window Switcher", systemImage: "square.grid.2x2", value: .switcher) {
+        SwitcherSettings(settings: settings)
+      }
       Tab("About", systemImage: "info.circle", value: .about) {
         AboutSettings()
       }
     }
-    .frame(width: 560)
+    .frame(minWidth: 560)
+    .windowResizeBehavior(.enabled)
     .onAppear {
       // Without a Dock icon, macOS leaves the menu bar blank after a Space switch while Settings is key.
       NSApp.setActivationPolicy(.regular)
