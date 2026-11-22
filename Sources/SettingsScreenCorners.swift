@@ -145,6 +145,7 @@ private struct ScreenCornersPreview: View {
           }
         }
         .padding(14)
+        .environment(\.layoutDirection, .leftToRight)
       }
       .frame(width: 360, height: 210)
       .clipped()

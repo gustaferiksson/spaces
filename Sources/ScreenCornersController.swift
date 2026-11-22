@@ -16,7 +16,7 @@ extension NSScreen {
 @MainActor
 final class ScreenCornersController {
   private let settings: AppSettings
-  private var panels: [NSPanel] = []
+  private var overlays: [String: (panel: NSPanel, content: NSHostingView<ScreenCornerMask>)] = [:]
   private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
 
   init(settings: AppSettings) { self.settings = settings }
@@ -37,7 +37,7 @@ final class ScreenCornersController {
 
   isolated deinit {
     for (center, observer) in observers { center.removeObserver(observer) }
-    panels.forEach { $0.close() }
+    overlays.values.forEach { $0.panel.close() }
   }
 
   private func observeSettings() {
@@ -49,33 +49,48 @@ final class ScreenCornersController {
   }
 
   private func refresh() {
-    panels.forEach { $0.close() }
-    panels.removeAll()
-    guard settings.screenCornersEnabled else { return }
-    for screen in NSScreen.screens {
+    var visibleDisplays: Set<String> = []
+    let screens = settings.screenCornersEnabled ? NSScreen.screens : []
+    for screen in screens {
       guard let id = screen.cornerDisplayIdentifier else { continue }
       let style = settings.screenCornerStyles[id] ?? ScreenCornerStyle()
       let fullScreen = SpaceLayout.current(displayIdentifier: id).map { $0.desktopNumber == nil } ?? false
       let radius = style.radius(fullScreen: fullScreen, width: screen.frame.width, height: screen.frame.height)
-      guard radius > 0 else { continue }
-      let panel = NSPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-      panel.isReleasedWhenClosed = false
-      panel.isOpaque = false
-      panel.backgroundColor = .clear
-      panel.hasShadow = false
-      panel.ignoresMouseEvents = true
-      panel.hidesOnDeactivate = false
-      panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
-      panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-      panel.contentView = NSHostingView(rootView: ScreenCornerMask(style: style, radius: radius))
-      panel.setFrame(screen.frame, display: true)
-      panel.orderFrontRegardless()
-      panels.append(panel)
+      guard radius > 0, style.topLeft || style.topRight || style.bottomLeft || style.bottomRight else { continue }
+      visibleDisplays.insert(id)
+      let mask = ScreenCornerMask(style: style, radius: radius)
+      if let (panel, content) = overlays[id] {
+        if content.rootView != mask { content.rootView = mask }
+        if panel.frame != screen.frame { panel.setFrame(screen.frame, display: true) }
+        if !panel.isVisible { panel.orderFrontRegardless() }
+      } else {
+        let content = NSHostingView(rootView: mask)
+        overlays[id] = (makePanel(frame: screen.frame, content: content), content)
+      }
     }
+    for id in Set(overlays.keys).subtracting(visibleDisplays) {
+      overlays.removeValue(forKey: id)?.panel.close()
+    }
+  }
+
+  private func makePanel(frame: CGRect, content: NSHostingView<ScreenCornerMask>) -> NSPanel {
+    let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    panel.isReleasedWhenClosed = false
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
+    panel.hasShadow = false
+    panel.ignoresMouseEvents = true
+    panel.hidesOnDeactivate = false
+    panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+    panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+    panel.contentView = content
+    panel.setFrame(frame, display: true)
+    panel.orderFrontRegardless()
+    return panel
   }
 }
 
-struct ScreenCornerMask: View {
+struct ScreenCornerMask: View, Equatable {
   let style: ScreenCornerStyle
   let radius: CGFloat
 
