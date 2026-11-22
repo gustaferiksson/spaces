@@ -5,6 +5,7 @@ import SpacesCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
   let engine = Engine(settings: .shared)
   let updater = AppUpdater()
+  private let screenCorners = ScreenCornersController(settings: .shared)
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     #if DEBUG
@@ -13,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return
       }
     #endif
+    screenCorners.start()
     engine.start()
     updater.start()
   }

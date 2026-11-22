@@ -31,6 +31,10 @@ final class AppSettings {
   var showDesktopInMenuBar: Bool { didSet { store.set(showDesktopInMenuBar, forKey: "showDesktopInMenuBar") } }
   var spaceSwitchingEnabled: Bool { didSet { store.set(spaceSwitchingEnabled, forKey: "spaceSwitchingEnabled") } }
   var windowSnappingEnabled: Bool { didSet { store.set(windowSnappingEnabled, forKey: "windowSnappingEnabled") } }
+  var screenCornersEnabled: Bool { didSet { store.set(screenCornersEnabled, forKey: "screenCornersEnabled") } }
+  var screenCornerStyles: [String: ScreenCornerStyle] {
+    didSet { store.set(try? JSONEncoder().encode(screenCornerStyles), forKey: "screenCornerStyles") }
+  }
   var windowGap: Double { didSet { store.set(windowGap, forKey: "windowGap") } }
   var snapActions: [SnapZone: WindowAction] {
     didSet {
@@ -49,6 +53,9 @@ final class AppSettings {
     showDesktopInMenuBar = store.bool(forKey: "showDesktopInMenuBar")
     spaceSwitchingEnabled = store.bool(forKey: "spaceSwitchingEnabled")
     windowSnappingEnabled = store.bool(forKey: "windowSnappingEnabled")
+    screenCornersEnabled = store.bool(forKey: "screenCornersEnabled")
+    screenCornerStyles = store.data(forKey: "screenCornerStyles")
+      .flatMap { try? JSONDecoder().decode([String: ScreenCornerStyle].self, from: $0) } ?? [:]
     windowGap = store.double(forKey: "windowGap")
     let storedSnapActions = (store.dictionary(forKey: "snapActions") as? [String: String]).map { stored in
       Dictionary(

@@ -50,12 +50,12 @@ extension SpaceLayout {
     )
   }()
 
-  public static func current() -> SpaceLayout? {
+  public static func current(displayIdentifier: String? = nil) -> SpaceLayout? {
     guard let skyLight,
       let displays = skyLight.copyManagedDisplaySpaces(skyLight.mainConnectionID())?.takeRetainedValue()
         as? [[String: Any]]
     else { return nil }
-    return SpaceLayout(displays: displays, cursorDisplay: cursorDisplayIdentifier())
+    return SpaceLayout(displays: displays, cursorDisplay: displayIdentifier ?? cursorDisplayIdentifier())
   }
 
   private static func cursorDisplayIdentifier() -> String? {
