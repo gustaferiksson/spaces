@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SettingsTab: String {
-  case general, shortcuts, snapAreas, about
+  case general, shortcuts, snapAreas, screenCorners, about
 }
 
 struct SettingsView: View {
@@ -18,6 +18,9 @@ struct SettingsView: View {
       }
       Tab("Snap Areas", systemImage: "rectangle.split.2x1", value: .snapAreas) {
         SnapAreasSettings(settings: settings)
+      }
+      Tab("Screen Corners", systemImage: "rectangle", value: .screenCorners) {
+        ScreenCornersSettings(settings: settings)
       }
       Tab("About", systemImage: "info.circle", value: .about) {
         AboutSettings()

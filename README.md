@@ -14,6 +14,11 @@ A menu bar app for instant Space switching and window snapping on macOS 27.
   preview shows where it will land. Each edge and corner's action is set in
   Settings. Drag a snapped window away and it returns to its earlier size.
 
+- **Screen corners**: opt in under Settings → Screen Corners to round your displays
+  with black overlays. Set desktop and fullscreen radii separately for each
+  display, choose continuous or circular curves, and select individual corners.
+  A radius of 0 keeps that context square. The overlays let clicks pass through.
+
 All shortcuts can be changed in Settings → Shortcuts. Space switching and
 window snapping can each be turned off in Settings or the menu bar menu.
 
