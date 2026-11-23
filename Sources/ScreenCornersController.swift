@@ -54,8 +54,7 @@ final class ScreenCornersController {
     for screen in screens {
       guard let id = screen.cornerDisplayIdentifier else { continue }
       let style = settings.screenCornerStyles[id] ?? ScreenCornerStyle()
-      let fullScreen = SpaceLayout.current(displayIdentifier: id).map { $0.desktopNumber == nil } ?? false
-      let radius = style.radius(fullScreen: fullScreen, width: screen.frame.width, height: screen.frame.height)
+      let radius = style.radius(for: screen.frame.size)
       guard radius > 0, style.topLeft || style.topRight || style.bottomLeft || style.bottomRight else { continue }
       visibleDisplays.insert(id)
       let mask = ScreenCornerMask(style: style, radius: radius)
