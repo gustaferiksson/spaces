@@ -31,9 +31,9 @@ struct ScreenCornersSettings: View {
       get: { settings.screenCornerStyles[id] ?? ScreenCornerStyle() },
       set: { settings.screenCornerStyles[id] = $0 })
     return Section {
-      ScreenCornersPreview(style: style)
-        .disabled(!style.wrappedValue.enabled)
       Toggle("Enable on this display", isOn: style.enabled)
+      ScreenCornersPreview(style: style, displaySize: screen.frame.size)
+        .disabled(!style.wrappedValue.enabled)
       Group {
         radiusSlider("Desktop radius", value: style.desktopRadius)
         radiusSlider("Fullscreen radius", value: style.fullScreenRadius)
@@ -41,29 +41,21 @@ struct ScreenCornersSettings: View {
           Text("Continuous").tag(true)
           Text("Circular").tag(false)
         }
-        HStack {
-          Toggle("Top left", isOn: style.topLeft)
-          Toggle("Top right", isOn: style.topRight)
-        }
-        HStack {
-          Toggle("Bottom left", isOn: style.bottomLeft)
-          Toggle("Bottom right", isOn: style.bottomRight)
-        }
       }
       .disabled(!style.wrappedValue.enabled)
     } header: {
       Text(screen.localizedName)
     } footer: {
-      Text("Set a radius to 0 to keep that context square. Settings are saved for this display, including when it is disconnected.")
+      Text("Set either radius to 0 to leave all corners square in that mode.")
     }
     .disabled(!settings.screenCornersEnabled)
   }
 
   private func radiusSlider(_ title: String, value: Binding<Double>) -> some View {
     LabeledContent(title) {
-      Slider(value: value, in: 0...100, step: 1)
+      Slider(value: value, in: 0...100)
         .accessibilityLabel(title)
-      Text("\(Int(value.wrappedValue)) pt")
+      Text("\(value.wrappedValue.formatted(.number.precision(.fractionLength(0)))) pt")
         .monospacedDigit()
         .frame(width: 48, alignment: .trailing)
     }
@@ -72,104 +64,113 @@ struct ScreenCornersSettings: View {
 
 private struct ScreenCornersPreview: View {
   @Binding var style: ScreenCornerStyle
+  let displaySize: CGSize
   @State private var fullScreen = false
 
   var body: some View {
-    VStack(spacing: 14) {
+    VStack(spacing: 10) {
       Picker("Preview", selection: $fullScreen) {
         Text("Desktop").tag(false)
         Text("Fullscreen").tag(true)
       }
+      .labelsHidden()
       .pickerStyle(.segmented)
-      .frame(width: 240)
+      .frame(maxWidth: 220)
 
-      ZStack {
-        LinearGradient(
-          colors: [Color(red: 0.12, green: 0.23, blue: 0.52), Color(red: 0.43, green: 0.36, blue: 0.72),
-                   Color(red: 0.89, green: 0.58, blue: 0.61)],
-          startPoint: .topLeading, endPoint: .bottomTrailing)
-        Circle()
-          .fill(.white.opacity(0.12))
-          .frame(width: 180, height: 180)
-          .offset(x: 120, y: 85)
-          .blur(radius: 12)
-        if fullScreen {
-          Image(systemName: "play.rectangle.fill")
-            .font(.system(size: 48, weight: .ultraLight))
-            .foregroundStyle(.white.opacity(0.8))
-        } else {
-          VStack(spacing: 0) {
-            HStack(spacing: 5) {
-              ForEach([Color.red, .yellow, .green], id: \.self) { color in
-                Circle().fill(color.opacity(0.9)).frame(width: 6, height: 6)
+      Color.clear
+        .aspectRatio(displaySize.width / displaySize.height, contentMode: .fit)
+        .overlay {
+          GeometryReader { geometry in
+            let size = geometry.size
+            let scale = size.width / displaySize.width
+            let radius = style.radius(fullScreen: fullScreen, width: displaySize.width, height: displaySize.height)
+            ZStack {
+              wallpaper
+              if fullScreen {
+                Image(systemName: "play.rectangle")
+                  .font(.system(size: min(size.width, size.height) * 0.25, weight: .light))
+                  .foregroundStyle(.white.opacity(0.8))
+                  .accessibilityHidden(true)
+              } else {
+                desktopDetails(size: size)
+                  .accessibilityHidden(true)
               }
-              Spacer()
-              Text("Spaces").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
-              Spacer()
+              ScreenCornerMask(style: style, radius: radius * scale)
+                .allowsHitTesting(false)
             }
-            .padding(9)
-            Divider()
-            VStack(alignment: .leading, spacing: 8) {
-              RoundedRectangle(cornerRadius: 3).fill(.primary.opacity(0.12)).frame(width: 72, height: 7)
-              RoundedRectangle(cornerRadius: 3).fill(.primary.opacity(0.06)).frame(height: 5)
-              RoundedRectangle(cornerRadius: 3).fill(.primary.opacity(0.06)).frame(width: 100, height: 5)
-            }
-            .padding(14)
-            Spacer(minLength: 0)
-          }
-          .frame(width: 170, height: 110)
-          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-          .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.4)))
-          .shadow(color: .black.opacity(0.2), radius: 12, y: 5)
-          VStack {
-            Rectangle().fill(.white.opacity(0.15)).frame(height: 12)
-            Spacer()
-            RoundedRectangle(cornerRadius: 9).fill(.ultraThinMaterial).frame(width: 130, height: 22)
-              .padding(.bottom, 7)
+            .clipped()
+            .overlay { Rectangle().strokeBorder(.white.opacity(0.2)).allowsHitTesting(false) }
+            .overlay(alignment: .topLeading) { cornerButton("Top left", value: $style.topLeft) }
+            .overlay(alignment: .topTrailing) { cornerButton("Top right", value: $style.topRight) }
+            .overlay(alignment: .bottomLeading) { cornerButton("Bottom left", value: $style.bottomLeft) }
+            .overlay(alignment: .bottomTrailing) { cornerButton("Bottom right", value: $style.bottomRight) }
+            .environment(\.layoutDirection, .leftToRight)
           }
         }
-        ScreenCornerMask(
-          style: style,
-          radius: style.radius(fullScreen: fullScreen, width: 1440, height: 900) * 0.4)
-        VStack {
-          HStack {
-            cornerButton("Top left", value: $style.topLeft)
-            Spacer()
-            cornerButton("Top right", value: $style.topRight)
-          }
-          Spacer()
-          HStack {
-            cornerButton("Bottom left", value: $style.bottomLeft)
-            Spacer()
-            cornerButton("Bottom right", value: $style.bottomRight)
-          }
-        }
-        .padding(14)
-        .environment(\.layoutDirection, .leftToRight)
-      }
-      .frame(width: 360, height: 210)
-      .clipped()
-      .overlay(Rectangle().strokeBorder(.white.opacity(0.15)))
-      .background(.black)
-      .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
-
-      Text("Click a corner to turn its curve on or off.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .frame(maxWidth: 400, maxHeight: 180)
+        .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
     }
     .frame(maxWidth: .infinity)
-    .padding(.vertical, 12)
+    .padding(.vertical, 10)
+  }
+
+  private var wallpaper: some View {
+    LinearGradient(
+      colors: [
+        Color(red: 0.12, green: 0.23, blue: 0.52),
+        Color(red: 0.43, green: 0.36, blue: 0.72),
+        Color(red: 0.89, green: 0.58, blue: 0.61),
+      ],
+      startPoint: .topLeading,
+      endPoint: .bottomTrailing)
+  }
+
+  private func desktopDetails(size: CGSize) -> some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 8)
+        .fill(.regularMaterial)
+        .overlay(alignment: .topLeading) {
+          HStack(spacing: 4) {
+            ForEach([Color.red, .yellow, .green], id: \.self) { color in
+              Circle().fill(color).frame(width: 4, height: 4)
+            }
+          }
+          .padding(6)
+        }
+        .frame(width: size.width * 0.42, height: size.height * 0.48)
+        .shadow(color: .black.opacity(0.2), radius: 5, y: 3)
+
+      VStack {
+        Rectangle().fill(.white.opacity(0.15)).frame(height: size.height * 0.06)
+        Spacer()
+        Capsule().fill(.ultraThinMaterial)
+          .frame(width: size.width * 0.3, height: size.height * 0.09)
+          .padding(.bottom, 5)
+      }
+    }
   }
 
   private func cornerButton(_ title: String, value: Binding<Bool>) -> some View {
-    Button { value.wrappedValue.toggle() } label: {
-      Image(systemName: value.wrappedValue ? "checkmark.square.fill" : "square")
-        .font(.system(size: 17, weight: .medium))
-        .foregroundStyle(value.wrappedValue ? Color.accentColor : .white.opacity(0.8))
-        .background(.white.opacity(value.wrappedValue ? 0.9 : 0.15), in: RoundedRectangle(cornerRadius: 4))
+    Button {
+      value.wrappedValue.toggle()
+    } label: {
+      RoundedRectangle(cornerRadius: 5)
+        .fill(value.wrappedValue ? Color.accentColor : Color.black.opacity(0.38))
+        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(.white.opacity(0.7)) }
+        .overlay {
+          Image(systemName: "checkmark")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .opacity(value.wrappedValue ? 1 : 0)
+        }
+        .frame(width: 18, height: 18)
+        .frame(width: 32, height: 32)
+        .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .padding(4)
     .accessibilityLabel(title)
     .accessibilityValue(value.wrappedValue ? "Rounded" : "Square")
+    .help(title)
   }
 }
