@@ -34,31 +34,22 @@ struct ScreenCornersSettings: View {
       Toggle("Enable on this display", isOn: style.enabled)
       ScreenCornersPreview(style: style, displaySize: screen.frame.size)
         .disabled(!style.wrappedValue.enabled)
-      Group {
-        radiusSlider("Desktop radius", value: style.desktopRadius)
-        radiusSlider("Fullscreen radius", value: style.fullScreenRadius)
-        Picker("Shape", selection: style.continuous) {
-          Text("Continuous").tag(true)
-          Text("Circular").tag(false)
-        }
+      Picker("Size", selection: style.sizePreset) {
+        Text("Smaller").tag(ScreenCornerStyle.SizePreset.smaller)
+        Text("Default").tag(ScreenCornerStyle.SizePreset.standard)
+        Text("Larger").tag(ScreenCornerStyle.SizePreset.larger)
+      }
+      .pickerStyle(.segmented)
+      .disabled(!style.wrappedValue.enabled)
+      Picker("Shape", selection: style.continuous) {
+        Text("Continuous").tag(true)
+        Text("Circular").tag(false)
       }
       .disabled(!style.wrappedValue.enabled)
     } header: {
       Text(screen.localizedName)
-    } footer: {
-      Text("Set either radius to 0 to leave all corners square in that mode.")
     }
     .disabled(!settings.screenCornersEnabled)
-  }
-
-  private func radiusSlider(_ title: String, value: Binding<Double>) -> some View {
-    LabeledContent(title) {
-      Slider(value: value, in: 0...100)
-        .accessibilityLabel(title)
-      Text("\(value.wrappedValue.formatted(.number.precision(.fractionLength(0)))) pt")
-        .monospacedDigit()
-        .frame(width: 48, alignment: .trailing)
-    }
   }
 }
 
@@ -83,7 +74,7 @@ private struct ScreenCornersPreview: View {
           GeometryReader { geometry in
             let size = geometry.size
             let scale = size.width / displaySize.width
-            let radius = style.radius(fullScreen: fullScreen, width: displaySize.width, height: displaySize.height)
+            let radius = style.radius(for: displaySize)
             ZStack {
               wallpaper
               if fullScreen {
