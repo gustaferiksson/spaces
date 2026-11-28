@@ -8,7 +8,7 @@
 
 A menu bar app that drops the slide animation and tiles windows with a shortcut or a drag.
 
-[Download](https://github.com/gustaferiksson/spaces/releases/latest) · [Install with Homebrew](#install) · Requires macOS 27 on Apple silicon
+[Website](https://spaces.gustaf.dev) · [Download](https://github.com/gustaferiksson/spaces/releases/latest) · [Install with Homebrew](#install) · Requires macOS 27 on Apple silicon
 
 </div>
 
