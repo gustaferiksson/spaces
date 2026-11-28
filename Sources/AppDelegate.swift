@@ -5,6 +5,7 @@ import SpacesCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
   let engine = Engine(settings: .shared)
   let updater = AppUpdater()
+  private lazy var statusMenu = StatusMenu(engine: engine, settings: .shared, updater: updater)
   private let screenCorners = ScreenCornersController(settings: .shared)
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -14,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return
       }
     #endif
+    statusMenu.install()
     screenCorners.start()
     engine.start()
     updater.start()
@@ -30,12 +32,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    // SwiftUI rejects showSettingsWindow: sent from code ("use SettingsLink") but honours its own app-menu item.
-    guard let menu = NSApp.mainMenu?.items.first?.submenu,
-      let index = menu.items.firstIndex(where: { $0.keyEquivalent == "," })
-    else { return true }
-    NSApp.activate()
-    menu.performActionForItem(at: index)
+    showSettingsWindow()
     return true
   }
+}
+
+// SwiftUI rejects showSettingsWindow: sent from code ("use SettingsLink") but honours its own app-menu item.
+@MainActor
+func showSettingsWindow() {
+  guard let menu = NSApp.mainMenu?.items.first?.submenu,
+    let index = menu.items.firstIndex(where: { $0.keyEquivalent == "," })
+  else { return }
+  NSApp.activate()
+  menu.performActionForItem(at: index)
 }
